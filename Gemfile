@@ -118,5 +118,5 @@ end
 
 group :production do
   # integration with our APM Instana
-  gem "instana", "~> 1"
+  gem "instana", "~> 2"
 end

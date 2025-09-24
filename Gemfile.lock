@@ -166,11 +166,14 @@ GEM
     htmlentities (4.3.4)
     i18n (1.14.7)
       concurrent-ruby (~> 1.0)
-    instana (1.217.1)
+    instana (2.0.0)
       base64 (>= 0.1)
       concurrent-ruby (>= 1.1)
       csv (>= 0.1)
+      logger
       oj (>= 3.0.11)
+      opentelemetry-api (~> 1.4)
+      opentelemetry-common
       sys-proctable (>= 1.2.2)
     io-console (0.8.1)
     irb (1.15.2)
@@ -258,6 +261,9 @@ GEM
     oj (3.16.11)
       bigdecimal (>= 3.0)
       ostruct (>= 0.2)
+    opentelemetry-api (1.7.0)
+    opentelemetry-common (0.22.0)
+      opentelemetry-api (~> 1.0)
     ostruct (0.6.3)
     parallel (1.27.0)
     parser (3.3.9.0)
@@ -513,7 +519,7 @@ DEPENDENCIES
   faraday
   foreman
   herb
-  instana (~> 1)
+  instana (~> 2)
   jbuilder
   kamal
   launchy (~> 3)
