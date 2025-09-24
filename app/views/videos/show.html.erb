@@ -1,0 +1,31 @@
+<h1><%= @video.title %></h1>
+
+<p><%= @video.description %></p>
+
+<% if @video.video_file.attached? %>
+  <video controls width="800">
+    <%= video_tag @video.video_file %>
+  </video>
+<% end %>
+
+<h2>Quality Versions</h2>
+<% @video.videos_qualities.each do |quality| %>
+  <div style="border: 1px solid #ddd; padding: 0.5rem; margin: 0.5rem 0;">
+    <strong><%= quality.quality %></strong>
+    - Status:
+    <%= quality.status %>
+    <% if quality.completed? && quality.video_file.attached? %>
+      -
+      <%= link_to "Download", quality.video_file, download: true %>
+      -
+      <video controls width="400">
+        <%= video_tag quality.video_file %>
+      </video>
+    <% elsif quality.unavailable? %>
+      -
+      <span style="color: #888;">Source quality too low</span>
+    <% end %>
+  </div>
+<% end %>
+
+<%= link_to "Back", videos_path %>

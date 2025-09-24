@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+
+if File.exist?("Procfile.dev")
+  exec "foreman", "start", "-f", "Procfile.dev"
+else
+  exec "./bin/rails", "server", *ARGV
+end

@@ -1,0 +1,13 @@
+<h1>Videos</h1>
+
+<%= link_to "Upload New Video", new_video_path %>
+
+<div>
+  <% @videos.each do |video| %>
+    <div style="border: 1px solid #ccc; padding: 1rem; margin: 1rem 0;">
+      <h3><%= link_to video.title, video_path(video) %></h3>
+      <p><%= video.description %></p>
+      <p>Created: <%= video.created_at.strftime("%B %d, %Y at %I:%M %p") %></p>
+    </div>
+  <% end %>
+</div>

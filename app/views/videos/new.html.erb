@@ -1,0 +1,36 @@
+<h1>Upload Video</h1>
+
+<%= form_with model: @video do |form| %>
+  <% if @video.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(@video.errors.count, "error") %>
+        prohibited this video from being saved:</h2>
+      <ul>
+        <% @video.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div>
+    <%= form.label :title %>
+    <%= form.text_field :title %>
+  </div>
+
+  <div>
+    <%= form.label :description %>
+    <%= form.text_area :description, rows: 4 %>
+  </div>
+
+  <div>
+    <%= form.label :video_file, "Video File" %>
+    <%= form.file_field :video_file, accept: "video/*" %>
+  </div>
+
+  <div>
+    <%= form.submit "Upload Video" %>
+  </div>
+<% end %>
+
+<%= link_to "Back", videos_path %>
