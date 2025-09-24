@@ -56,7 +56,7 @@ group :development, :test do
   # FactoryBot for creating model instances for tests
   gem "factory_bot_rails", "~> 6.2"
   # Faker for generating fake data for tests
-  gem "faker", "~> 2.21"
+  gem "faker", "~> 3.5"
   # Codecov for code coverage reporting
   gem "simplecov", require: false
   # Capybara for acceptance tests
