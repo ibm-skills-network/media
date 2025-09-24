@@ -132,7 +132,7 @@ GEM
     factory_bot_rails (6.5.1)
       factory_bot (~> 6.5)
       railties (>= 6.1.0)
-    faker (2.23.0)
+    faker (3.5.2)
       i18n (>= 1.8.11, < 2)
     faraday (2.13.4)
       faraday-net_http (>= 2.0, < 3.5)
@@ -509,7 +509,7 @@ DEPENDENCIES
   debug
   erb-formatter (~> 0.7.3)
   factory_bot_rails (~> 6.2)
-  faker (~> 2.21)
+  faker (~> 3.5)
   faraday
   foreman
   herb
