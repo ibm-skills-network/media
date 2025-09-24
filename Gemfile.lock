@@ -374,10 +374,10 @@ GEM
     rubocop-ast (1.47.1)
       parser (>= 3.3.7.2)
       prism (~> 1.4)
-    rubocop-github (0.17.0)
-      rubocop
-      rubocop-performance
-      rubocop-rails
+    rubocop-github (0.26.0)
+      rubocop (>= 1.76)
+      rubocop-performance (>= 1.24)
+      rubocop-rails (>= 2.23)
     rubocop-performance (1.26.0)
       lint_roller (~> 1.1)
       rubocop (>= 1.75.0, < 2.0)
@@ -525,7 +525,7 @@ DEPENDENCIES
   rails (~> 8.0.3)
   rails-controller-testing (~> 1.0.5)
   rspec-rails (~> 6.0)
-  rubocop-github (~> 0.17.0)
+  rubocop-github (~> 0.26.0)
   rubocop-performance
   rubocop-rails
   rubocop-rails-omakase
