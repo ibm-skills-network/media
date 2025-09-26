@@ -12,5 +12,6 @@ Rails.application.routes.draw do
   # Sidekiq Web UI
   mount Sidekiq::Web => "/sidekiq"
 
-
+  # Video API routes
+  resources :videos, only: [ :create, :index, :show ]
 end
