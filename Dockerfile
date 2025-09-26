@@ -70,7 +70,7 @@ COPY lib ./lib
 COPY app/models ./app/models
 COPY Rakefile config.ru ./
 COPY app ./app
-RUN SECRET_KEY_BASE=dummysecret
+ENV SECRET_KEY_BASE=dummysecret
 USER 1001
 
 
@@ -78,7 +78,7 @@ USER 1001
 FROM icr.io/skills-network/ruby:3 AS release
 USER root
 ENV APP_HOME /app
-RUN SECRET_KEY_BASE=dummysecret
+ENV SECRET_KEY_BASE=dummysecret
 RUN apk add --no-cache \
       tzdata \
       file \
