@@ -8,14 +8,7 @@ local:
   root: <%= Rails.root.join("storage") %>
   public: true
 
-# ibmcos:
-#   service: S3
-#   public: true
-#   access_key_id: <%= Settings.dig(:ibmcos, :access_key_id) %>
-#   secret_access_key: <%= Settings.dig(:ibmcos, :secret_access_key) %>
-#   endpoint: <%= Settings.dig(:ibmcos, :endpoint) %>
-#   region: <%= Settings.dig(:ibmcos, :region) %>
-#   bucket: <%= Settings.dig(:ibmcos, :bucket) %>
+
 
 # Use rails credentials:edit to set the AWS secrets (as aws:access_key_id|secret_access_key)
 # amazon:
