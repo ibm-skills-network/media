@@ -94,9 +94,8 @@ COPY --from=builder $APP_HOME $APP_HOME
 COPY --from=ffmpeg-builder /usr/local/bin/ffmpeg /usr/local/bin/
 COPY --from=ffmpeg-builder /usr/local/bin/ffprobe /usr/local/bin/
 COPY --from=ffmpeg-builder /usr/local/lib/ /usr/local/lib/
-COPY --from=ffmpeg-builder /usr/lib/x86_64-linux-gnu/ /usr/lib/x86_64-linux-gnu/
 
-RUN ldconfig
+RUN ldconfig /usr/local/lib
 
 WORKDIR $APP_HOME
 USER 1001
