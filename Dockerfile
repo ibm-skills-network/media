@@ -99,6 +99,11 @@ COPY --from=ffmpeg-builder /usr/local/lib/ /usr/local/lib/
 RUN ldconfig /usr/local/lib
 
 WORKDIR $APP_HOME
-USER 1001
+
+ENV USER=skillsnetwork
+ENV UID=1001
+RUN adduser --disabled-password --gecos "" --uid $UID $USER
+RUN chown -R $USER:$USER $APP_HOME
+
 ENTRYPOINT ["bin/rails"]
 CMD ["server", "-b", "0.0.0.0"]
