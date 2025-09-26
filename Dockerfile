@@ -45,7 +45,7 @@ RUN git clone https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
     rm -rf /tmp/ffmpeg
 
 # Rails application stage
-FROM icr.io/skills-network/ruby:3 as builder
+FROM icr.io/skills-network/ruby:3 AS builder
 
 ENV APP_HOME /app
 ENV RAILS_ENV production
@@ -78,11 +78,7 @@ COPY app/models ./app/models
 COPY Rakefile config.ru ./
 
 
-# Compile/transpile static assets
-# Added SECRET_KEY_BASE=dummysecret as it fixes an error in the assets:precompile job
-RUN SECRET_KEY_BASE=dummysecret \
-    MEDIA_URL=https://localhost:3000 \
-    bundle exec bin/rake assets:precompile
+
 
 COPY app ./app
 
