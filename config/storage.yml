@@ -1,12 +1,11 @@
 test:
-  service: DiskWithHost
+  service: Disk
   root: <%= Rails.root.join("tmp/storage") %>
-  public: true
 
 local:
-  service: DiskWithHost
+  service: Disk
   root: <%= Rails.root.join("storage") %>
-  public: true
+
 
 
 
