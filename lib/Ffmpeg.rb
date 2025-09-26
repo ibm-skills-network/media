@@ -142,5 +142,5 @@ module Ffmpeg
     end
   end
 
-  raise "FFmpeg is not installed. Please install FFmpeg to use this module." unless ffmpeg_installed?
+  # raise "FFmpeg is not installed. Please install FFmpeg to use this module." unless ffmpeg_installed?
 end
