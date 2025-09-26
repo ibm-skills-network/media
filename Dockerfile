@@ -9,6 +9,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     yasm \
+    nasm \
     cmake \
     libtool \
     unzip \
@@ -25,8 +26,8 @@ RUN git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git /tmp/nv-c
     make install PREFIX=/usr && \
     cd -
 
-# Build and install FFmpeg
-RUN git clone https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
+# Build FFmpeg
+RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
     cd /tmp/ffmpeg && \
     ./configure \
         --enable-nonfree \
