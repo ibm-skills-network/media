@@ -1,4 +1,4 @@
-# Rails application with CUDA FFmpeg support
+# Stage 1: Build FFmpeg with CUDA support
 FROM nvidia/cuda:12.0.1-devel-ubuntu22.04 AS ffmpeg-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -6,20 +6,17 @@ ENV PATH="/usr/local/cuda/bin:${PATH}"
 
 WORKDIR /app
 
-# Install build tools for FFmpeg
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     yasm \
     cmake \
     libtool \
-    libc6 \
-    libc6-dev \
     unzip \
     wget \
-    libnuma1 \
-    libnuma-dev \
     git \
     pkg-config \
+    libnuma1 \
+    libnuma-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install NVIDIA codec headers
@@ -28,7 +25,7 @@ RUN git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git /tmp/nv-c
     make install PREFIX=/usr && \
     cd -
 
-# Build and install FFmpeg with CUDA and AV1 support
+# Build and install FFmpeg
 RUN git clone https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
     cd /tmp/ffmpeg && \
     ./configure \
@@ -44,19 +41,18 @@ RUN git clone https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
     ldconfig && \
     rm -rf /tmp/ffmpeg
 
-# Rails application stage
+
+# Stage 2: Build Rails app
 FROM icr.io/skills-network/ruby:3 AS builder
 
 ENV APP_HOME /app
 ENV RAILS_ENV production
 
 WORKDIR /app
-
 USER root
 
 RUN apk upgrade
 
-# Install Gem
 COPY Gemfile Gemfile.lock ./
 RUN apk add --no-cache --virtual build_deps git
 RUN apk add bind-tools gcompat build-base nodejs npm
@@ -70,21 +66,14 @@ COPY bin ./bin
 COPY config ./config
 COPY db ./db
 COPY lib ./lib
-COPY public ./public
-COPY app/views ./app/views
 COPY app/models ./app/models
-
-# Config files
 COPY Rakefile config.ru ./
-
-
-
-
 COPY app ./app
 
 USER 1001
 
-# Production image build
+
+# Stage 3: Production image
 FROM icr.io/skills-network/ruby:3 AS release
 USER root
 ENV APP_HOME /app
@@ -97,34 +86,19 @@ RUN apk add --no-cache \
       gcompat && \
     rm -rf /var/cache/apk/*
 
+# Copy Rails dependencies
 COPY --from=builder /usr/local/bundle/ /usr/local/bundle/
 COPY --from=builder $APP_HOME $APP_HOME
+
+# Copy FFmpeg binaries + libs from ffmpeg-builder
+COPY --from=ffmpeg-builder /usr/local/bin/ffmpeg /usr/local/bin/
+COPY --from=ffmpeg-builder /usr/local/bin/ffprobe /usr/local/bin/
+COPY --from=ffmpeg-builder /usr/local/lib/ /usr/local/lib/
+COPY --from=ffmpeg-builder /usr/lib/x86_64-linux-gnu/ /usr/lib/x86_64-linux-gnu/
+
+RUN ldconfig
 
 WORKDIR $APP_HOME
 USER 1001
 ENTRYPOINT ["bin/rails"]
 CMD ["server", "-b", "0.0.0.0"]
-
-# Default to `release`
-FROM release AS monkey-patched
-USER root
-
-ENV APP_HOME /app
-ENV RAILS_ENV production
-ENV SECRET_KEY_BASE=dummysecret
-
-ENV USER=skillsnetwork
-ENV UID=1001
-RUN adduser --disabled-password --gecos "" --uid $UID $USER
-RUN chown -R $USER:$USER $APP_HOME
-
-RUN apk upgrade --update-cache \
-    busybox \
-    ssl_client \
-    libpq \
-    expat \
-    bind-libs\
-    bind-tools\
-  && rm -rf /var/cache/apk/*
-
-USER 1001
