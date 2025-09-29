@@ -119,6 +119,7 @@ class VideosController < ApplicationController
         h264_nvenc_encoder_available: h264_nvenc_available,
         hevc_nvenc_encoder_available: hevc_nvenc_available,
         ffmpeg_hwaccels_output: stdout,
+        all_encoders_output: stdout_encoders,
         status: "success"
       }, status: :ok
 
