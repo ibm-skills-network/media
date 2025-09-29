@@ -90,9 +90,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ruby (matching version from builder)
+# Install Ruby 3.4.6 from source
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ruby ruby-dev \
+    build-essential \
+    libssl-dev \
+    libreadline-dev \
+    zlib1g-dev \
+    wget \
+    && wget https://cache.ruby-lang.org/pub/ruby/3.4/ruby-3.4.6.tar.gz \
+    && tar -xzf ruby-3.4.6.tar.gz \
+    && cd ruby-3.4.6 \
+    && ./configure --disable-install-doc \
+    && make -j$(nproc) \
+    && make install \
+    && cd .. \
+    && rm -rf ruby-3.4.6 ruby-3.4.6.tar.gz \
+    && apt-get purge -y build-essential wget \
+    && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Rails dependencies
