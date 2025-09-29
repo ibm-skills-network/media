@@ -74,18 +74,26 @@ ENV SECRET_KEY_BASE=dummysecret
 USER 1001
 
 
-# Stage 3: Production image
-FROM icr.io/skills-network/ruby:3 AS release
+# Stage 3: Production image - Switch to Ubuntu base for glibc compatibility
+FROM nvidia/cuda:12.0.1-runtime-ubuntu22.04 AS release
 USER root
 ENV APP_HOME /app
 ENV SECRET_KEY_BASE=dummysecret
-RUN apk add --no-cache \
-      tzdata \
-      file \
-      libpq \
-      bind-tools \
-      gcompat && \
-    rm -rf /var/cache/apk/*
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tzdata \
+    file \
+    libpq5 \
+    libnuma1 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Ruby (matching version from builder)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ruby ruby-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy Rails dependencies
 COPY --from=builder /usr/local/bundle/ /usr/local/bundle/
@@ -95,14 +103,16 @@ COPY --from=builder $APP_HOME $APP_HOME
 COPY --from=ffmpeg-builder /usr/local/bin/ffmpeg /usr/local/bin/
 COPY --from=ffmpeg-builder /usr/local/bin/ffprobe /usr/local/bin/
 COPY --from=ffmpeg-builder /usr/local/lib/ /usr/local/lib/
+# Copy CUDA runtime libraries needed for FFmpeg
+COPY --from=ffmpeg-builder /usr/local/cuda/lib64/ /usr/local/cuda/lib64/
 
-RUN ldconfig /usr/local/lib
+RUN ldconfig
 
 WORKDIR $APP_HOME
 
 ENV USER=skillsnetwork
 ENV UID=1001
-RUN adduser --disabled-password --gecos "" --uid $UID $USER
+RUN useradd -m -u $UID $USER
 RUN chown -R $USER:$USER $APP_HOME
 
 ENTRYPOINT ["bin/rails"]
