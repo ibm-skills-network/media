@@ -44,24 +44,26 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
 
 
 # Stage 2: Build Rails app
-FROM icr.io/skills-network/ruby:3 AS builder
+FROM ruby:3.4.6-slim AS builder
 
 ENV APP_HOME /app
 ENV RAILS_ENV production
+ENV DEBIAN_FRONTEND=noninteractive
 
 WORKDIR /app
 USER root
 
-RUN apk upgrade
-
 COPY Gemfile Gemfile.lock ./
-RUN apk add --no-cache --virtual build_deps git
-RUN apk add bind-tools gcompat build-base nodejs npm
-RUN apk add --no-cache postgresql-dev
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    libpq-dev \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN bundle install --jobs="$(nproc --all)" --frozen --retry 3 -j4 --without development test
 RUN rm -rf /usr/local/bundle/bundler/gems/*/.git /usr/local/bundle/cache/
-RUN rm -rf /var/cache/apk/*
-RUN apk del build_deps
 
 COPY bin ./bin
 COPY config ./config
@@ -71,7 +73,6 @@ COPY app/models ./app/models
 COPY Rakefile config.ru ./
 COPY app ./app
 ENV SECRET_KEY_BASE=dummysecret
-USER 1001
 
 
 # Stage 3: Production image - Switch to Ubuntu base for glibc compatibility
@@ -90,26 +91,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Ruby 3.4.6 from source
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    libssl-dev \
-    libreadline-dev \
-    zlib1g-dev \
-    wget \
-    && wget https://cache.ruby-lang.org/pub/ruby/3.4/ruby-3.4.6.tar.gz \
-    && tar -xzf ruby-3.4.6.tar.gz \
-    && cd ruby-3.4.6 \
-    && ./configure --disable-install-doc \
-    && make -j$(nproc) \
-    && make install \
-    && cd .. \
-    && rm -rf ruby-3.4.6 ruby-3.4.6.tar.gz \
-    && apt-get purge -y build-essential wget \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy Rails dependencies
+# Copy Ruby and all dependencies from builder
+COPY --from=builder /usr/local/bin/ruby /usr/local/bin/ruby
+COPY --from=builder /usr/local/bin/bundle /usr/local/bin/bundle
+COPY --from=builder /usr/local/bin/bundler /usr/local/bin/bundler
+COPY --from=builder /usr/local/lib/ruby /usr/local/lib/ruby
 COPY --from=builder /usr/local/bundle/ /usr/local/bundle/
 COPY --from=builder $APP_HOME $APP_HOME
 
