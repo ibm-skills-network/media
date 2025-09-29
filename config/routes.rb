@@ -14,7 +14,7 @@ Rails.application.routes.draw do
 
   get :test, to: "videos#test_nvenc_codecs"
   get :testvideo, to: "videos#test_1080p_conversion"
-  get :testnvenc, to: "videos#test_nvenc_conversion"
+  get :testnvenc, to: "videos#testvideonv"
   # Video API routes
   resources :videos, only: [ :create, :index, :show ] do
   end
