@@ -12,6 +12,9 @@ Rails.application.routes.draw do
   # Sidekiq Web UI
   mount Sidekiq::Web => "/sidekiq"
 
+  get :test, to: "videos#test_nvenc_codecs"
+  get :testvideo, to: "videos#test_1080p_conversion"
   # Video API routes
-  resources :videos, only: [ :create, :index, :show ]
+  resources :videos, only: [ :create, :index, :show ] do
+  end
 end
