@@ -1,4 +1,5 @@
 # Stage 1: Build FFmpeg with CUDA support
+# replace stage 1 and stage 3 with the base image from lib/ffmpeg/Dockerfile
 FROM nvidia/cuda:12.0.1-devel-ubuntu22.04 AS ffmpeg-builder
 
 ENV DEBIAN_FRONTEND=noninteractive
