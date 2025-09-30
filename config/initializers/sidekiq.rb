@@ -13,6 +13,4 @@ Sidekiq.configure_client do |config|
   config.redis = { url: redis_url, network_timeout: redis_network_timeout }
 end
 
-# Sidekiq::Cron::Job.load_from_hash(Settings.cron_jobs.to_hash) if Sidekiq.server?
 
-# Sidekiq::Cron::Job.all.map(&:disable!) if Rails.env.development?
