@@ -32,8 +32,7 @@ module Videos
       temp_input.write(response.body.force_encoding("BINARY"))
       temp_input.rewind
 
-      # fix
-      if Ffmpeg::Video.determine_max_quality(temp_input.path) < quality.quality
+      if Ffmpeg::Video.determine_max_quality(temp_input.path) < Videos::Quality.qualities[quality.quality]
         quality.unavailable!
         return
       end

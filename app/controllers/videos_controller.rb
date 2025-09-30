@@ -1,20 +1,18 @@
 class VideosController < ApplicationController
   def create
-    video = Video.new(video_params)
+    video = Video.create!(video_params)
+    video.create_qualities!(video_params)
 
-    if video.save
-      video.create_qualities(video_params)
-      render json: {
-        id: video.id,
-        message: "Video uploaded successfully",
-        status: "success"
-      }, status: :created
-    else
-      render json: {
-        errors: video.errors.full_messages,
-        status: "error"
-      }, status: :unprocessable_entity
-    end
+    render json: {
+      id: video.id,
+      message: "Video uploaded successfully",
+      status: "success"
+    }, status: :created
+  rescue ActiveRecord::RecordInvalid => e
+    render json: {
+      errors: e.record.errors.full_messages,
+      status: "error"
+    }, status: :unprocessable_entity
   end
 
   def index
