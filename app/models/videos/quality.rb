@@ -10,5 +10,13 @@ module Videos
 
     validates :quality, presence: true, inclusion: { in: qualities.keys }
     validates :status, presence: true, inclusion: { in: statuses.keys }
+
+    def encode_video
+      EncodeQualityJob.perform_now(self.id)
+    end
+
+    def encode_video_later
+      EncodeQualityJob.perform_later(self.id)
+    end
   end
 end

@@ -1,11 +1,9 @@
 class Video < ApplicationRecord
-  has_one_attached :video_file
-  has_many :videos_qualities, class_name: "Videos::Quality"
+  has_many :qualities, class_name: "Videos::Quality", dependent: :destroy
 
-  def enqueue_quality_conversion(quality:)
-    Videos::CreateQualityJob.perform_later(
-      video_id: id,
-      quality: quality
-    )
+  def create_qualities(video_params)
+    Videos::Quality.qualities.keys.each do |quality|
+      qualities.create(quality: quality)
+    end
   end
 end

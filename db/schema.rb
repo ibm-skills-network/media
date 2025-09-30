@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_09_26_152706) do
+ActiveRecord::Schema[8.0].define(version: 2025_09_30_153928) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -45,13 +45,14 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_26_152706) do
   create_table "videos", force: :cascade do |t|
     t.string "title"
     t.text "description"
+    t.string "external_video_link"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
   end
 
   create_table "videos_qualities", force: :cascade do |t|
     t.bigint "video_id", null: false
-    t.integer "quality"
+    t.integer "quality", default: 0
     t.integer "status", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
