@@ -12,5 +12,3 @@ end
 Sidekiq.configure_client do |config|
   config.redis = { url: redis_url, network_timeout: redis_network_timeout }
 end
-
-
