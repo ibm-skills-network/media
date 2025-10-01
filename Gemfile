@@ -21,6 +21,8 @@ gem "bootsnap", require: false
 gem "sidekiq"
 gem "sidekiq-cron"
 
+gem "redis"
+
 # Application configuration
 gem "config"
 
