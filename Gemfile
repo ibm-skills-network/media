@@ -19,6 +19,7 @@ gem "tzinfo-data", platforms: %i[ windows jruby ]
 gem "bootsnap", require: false
 # Background job processing
 gem "sidekiq"
+gem "sidekiq-cron"
 
 # HTTP client library
 gem "faraday"
