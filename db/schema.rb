@@ -52,7 +52,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_09_30_153928) do
 
   create_table "videos_qualities", force: :cascade do |t|
     t.bigint "video_id", null: false
-    t.integer "quality", default: 0
+    t.integer "quality"
     t.integer "status", default: 0
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

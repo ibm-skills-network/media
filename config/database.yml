@@ -4,29 +4,47 @@
 #   gem install pg
 # On macOS with Homebrew:
 #   gem install pg -- --with-pg-config=/usr/local/bin/pg_config
+# On macOS with MacPorts:
+#   gem install pg -- --with-pg-config=/opt/local/lib/postgresql84/bin/pg_config
 # On Windows:
 #   gem install pg
 #       Choose the win32 build.
 #       Install PostgreSQL and put its /bin directory on your path.
 #
 # Configure Using Gemfile
-# gem "pg"
+# gem 'pg'
 #
-default: &default
-  adapter: postgresql
-  encoding: unicode
-  # For details on connection pooling, see Rails configuration guide
-  # https://guides.rubyonrails.org/configuring.html#database-pooling
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-
+default:
+  primary: &primary
+    adapter: postgresql
+    encoding: unicode
+    # For details on connection pooling, see Rails configuration guide
+    # https://guides.rubyonrails.org/configuring.html#database-pooling
+    pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+    sslrootcert: <%= ENV.fetch("DATABASE_TLS_ROOT_CERT_PATH", "/root/.postgresql/root.crt") %>
 
 development:
-  <<: *default
-  database: media_development
-  username: media
-  password: password
-  host: localhost
-  port: 5432
+  primary:
+    <<: *primary
+    url: <%= ENV["DATABASE_URL"] || "postgresql://postgres:password@localhost:5432/media_development?schema=public&connection_limit=5" %>
+
+  # The specified database role being used to connect to postgres.
+  # To create additional roles in postgres see `$ createuser --help`.
+  # When left blank, postgres will use the default role. This is
+  # the same name as the operating system user running Rails.
+  #username: author_workbench
+
+  # The password associated with the postgres role (username).
+  #password:
+
+  # Connect on a TCP socket. Omitted by default since the client uses a
+  # domain socket that doesn't need configuration. Windows does not have
+  # domain sockets, so uncomment these lines.
+  #host: localhost
+
+  # The TCP port the server listens on. Defaults to 5432.
+  # If your server runs on a different port number, change accordingly.
+  #port: 5432
 
   # Schema search path. The server defaults to $user,public
   #schema_search_path: myapp,sharedapp,public
@@ -41,12 +59,9 @@ development:
 # re-generated from your development database when you run "rake".
 # Do not set this db to the same as development or production.
 test:
-  <<: *default
-  database: media_test
-  username: postgres
-  password: password
-  host: localhost
-  port: 5432
+  primary:
+    <<: *primary
+    url: <%= ENV["DATABASE_URL"] || "postgresql://postgres:password@localhost:5432/media_test?schema=public&connection_limit=5" %>
 
 # As with config/credentials.yml, you never want to store sensitive information,
 # like your database password, in your source code. If your source code is
@@ -63,14 +78,16 @@ test:
 # URL environment variable explicitly:
 #
 #   production:
-#     url: <%= ENV["MY_APP_DATABASE_URL"] %>
+#     url: <%= ENV['MY_APP_DATABASE_URL'] %>
 #
 # Read https://guides.rubyonrails.org/configuring.html#configuring-a-database
 # for a full overview on how database connection configuration can be specified.
 #
 production:
-  primary: &primary_production
-    <<: *default
+  primary:
+    <<: *primary
     database: media_production
-    username: media
-    password: <%= ENV["MEDIA_DATABASE_PASSWORD"] %>
+    username: postgres
+    password: <%= ENV['MEDIA_DATABASE_PASSWORD'] %>
+    advisory_locks: false
+    prepared_statements: false
