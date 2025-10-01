@@ -21,6 +21,9 @@ gem "bootsnap", require: false
 gem "sidekiq"
 gem "sidekiq-cron"
 
+# Application configuration
+gem "config"
+
 # HTTP client library
 gem "faraday"
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
