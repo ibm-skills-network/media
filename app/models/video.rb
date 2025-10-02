@@ -3,7 +3,8 @@ class Video < ApplicationRecord
 
   def create_qualities!(video_params)
     Videos::Quality.qualities.keys.each do |quality|
-      qualities.create!(quality: quality)
+      q = qualities.create!(quality: quality)
+      q.encode_video_later
     end
   end
 end
