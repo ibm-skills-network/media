@@ -70,17 +70,15 @@ Rails.application.configure do
 
 
   if Settings.redis
-    SENTINELS = [
-      {
-        host: Settings.redis.sentinel.host,
-        port: Settings.redis.sentinel.port,
-        password: Settings.redis.sentinel.password
-      }
-    ].freeze
+
     sentinel_config = {
       url: Settings.redis.url || "redis://localhost:6379",
       role: "master",
-      sentinels: SENTINELS,
+      sentinels: {
+        host: Settings.redis.sentinel.host,
+        port: Settings.redis.sentinel.port,
+        password: Settings.redis.sentinel.password
+      },
       password: Settings.redis.sentinel.password
     }
     config.cache_store = :redis_cache_store, sentinel_config.merge(
