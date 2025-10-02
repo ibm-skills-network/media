@@ -13,7 +13,7 @@ module Videos
 
 
     begin
-      case Ffmpeg::Video.mime_type(video.external_video_link)[:mime_type]
+      case Ffmpeg::Video.mime_type(video.external_video_link)
       when "video/mp4"
         temp_input = Tempfile.new([ "#{video.id}_input", ".mp4" ])
       when "video/webm"
