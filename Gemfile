@@ -23,6 +23,7 @@ gem "sidekiq-cron"
 
 gem "redis"
 
+gem "aws-sdk-s3"
 # Application configuration
 gem "config"
 
