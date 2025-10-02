@@ -67,11 +67,11 @@ module Ffmpeg
         bitrate = video_stream["bit_rate"].to_i
 
         if height >= 1080 && width >= 1920 && bitrate >= 2_000_000 # 2 Mbps
-          Videos::Quality.qualities["1080p"]
+          "1080p"
         elsif height >= 720 && width >= 1280 && bitrate >= 1_000_000 # 1 Mbps
-          Videos::Quality.qualities["720p"]
+          "720p"
         else
-          Videos::Quality.qualities["480p"]
+          "480p"
         end
       end
 
