@@ -12,7 +12,6 @@ module Videos
     return if quality.completed?
 
 
-    begin
       case Ffmpeg::Video.mime_type(video.external_video_link)
       when "video/mp4"
         temp_input = Tempfile.new([ "#{video.id}_input", ".mp4" ])
@@ -44,10 +43,6 @@ module Videos
       end
 
       quality.completed!
-    end
-    ensure
-    temp_input&.unlink
-    temp_output&.unlink
     end
   end
 end
