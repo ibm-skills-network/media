@@ -27,8 +27,11 @@ module Videos
       temp_output = Tempfile.new([ "#{video.id}_output", ".mp4" ])
 
       temp_input.binmode
-      response = Faraday.get(video.external_video_link)
-      temp_input.write(response.body.force_encoding("BINARY"))
+      Faraday.get(video.external_video_link) do |req|
+        req.options.on_data = Proc.new do |chunk, overall_received_bytes|
+          temp_input.write(chunk)
+        end
+      end
       temp_input.rewind
 
       if Videos::Quality.qualities[Ffmpeg::Video.determine_max_quality(temp_input.path)] < Videos::Quality.qualities[quality.quality]
@@ -36,11 +39,17 @@ module Videos
         return
       end
 
-      Ffmpeg::Video.encode_video(temp_input.path, temp_output.path, quality.quality)
+      result = Ffmpeg::Video.encode_video(temp_input.path, temp_output.path, quality.quality)
+
+      if result[:success]
 
       File.open(temp_output.path, "rb") do |file|
-        quality.video_file.attach(io: file, filename: "#{video.id}_output.mp4")
+          quality.video_file.attach(io: file, filename: "#{video.id}_output.mp4")
+        end
+      else
+        raise result[:error]
       end
+
 
       quality.completed!
     end
