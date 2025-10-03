@@ -38,7 +38,11 @@ module Videos
       end
 
       Ffmpeg::Video.encode_video(temp_input.path, temp_output.path, quality.quality)
-      quality.video_file.attach(io: File.open(temp_output.path), filename: "#{video.id}_output.mp4")
+
+      File.open(temp_output.path, "rb") do |file|
+        quality.video_file.attach(io: file, filename: "#{video.id}_output.mp4")
+      end
+
       quality.completed!
     end
     ensure
