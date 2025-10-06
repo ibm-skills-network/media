@@ -33,6 +33,9 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
     ./configure \
         --enable-nonfree \
         --enable-cuda-nvcc \
+        --enable-cuvid \
+        --enable-nvenc \
+        --enable-nvdec \
         --enable-libnpp \
         --extra-cflags=-I/usr/local/cuda/include \
         --extra-ldflags=-L/usr/local/cuda/lib64 \
