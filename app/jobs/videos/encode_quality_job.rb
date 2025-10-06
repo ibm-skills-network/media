@@ -32,26 +32,35 @@ module Videos
           temp_input.write(chunk)
         end
       end
-      temp_input.rewind
+      temp_input.close
 
       if Videos::Quality.qualities[Ffmpeg::Video.determine_max_quality(temp_input.path)] < Videos::Quality.qualities[quality.quality]
         quality.unavailable!
         return
       end
 
+      temp_output.close
+
+      Rails.logger.info "Input file size: #{File.size(temp_input.path)} bytes"
+
       result = Ffmpeg::Video.encode_video(temp_input.path, temp_output.path, quality.quality)
 
-      if result[:success]
+      Rails.logger.info "Encode result: #{result.inspect}"
+      Rails.logger.info "Output file size: #{File.size(temp_output.path)} bytes"
+      Rails.logger.info "Output file exists: #{File.exist?(temp_output.path)}"
 
-      File.open(temp_output.path, "rb") do |file|
+      if result[:success]
+        File.open(temp_output.path, "rb") do |file|
+          Rails.logger.info "File size being attached: #{file.size} bytes"
           quality.video_file.attach(io: file, filename: "#{video.id}_output.mp4")
         end
+        quality.completed!
       else
         raise result[:error]
       end
-
-
-      quality.completed!
+    ensure
+      temp_input&.unlink
+      temp_output&.unlink
     end
   end
 end
