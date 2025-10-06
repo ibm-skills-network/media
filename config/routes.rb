@@ -17,6 +17,5 @@ Rails.application.routes.draw do
   get :testnvenc, to: "tests#testvideonv"
   # Video API routes
   resources :videos, only: [ :create, :index, :show ] do
-    get :poll, on: :member
   end
 end

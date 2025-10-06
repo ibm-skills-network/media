@@ -1,5 +1,5 @@
 class VideosController < ApplicationController
-  before_action :set_video, only: [ :show, :poll ]
+  before_action :set_video, only: [ :show ]
   def create
     video = Video.create!(video_params)
     video.create_qualities!(video_params)
@@ -24,27 +24,12 @@ class VideosController < ApplicationController
       title: @video.title,
       description: @video.description,
       external_video_link: @video.external_video_link,
-      qualities: @video.qualities.map { |q| {
-        quality: q.quality,
+      qualities: @video.qualities.to_h { |q| [ q.quality, {
         status: q.status,
-        video_file: q.video_file&.url
-      } }
+        url: q.video_file&.url
+      } ] }
     }
   end
-
-  def poll
-    if @video.qualities.all? { |q| q.completed? || q.unavailable? || q.failed? }
-      render json: {
-        status: "completed"
-      }
-    else
-      render json: {
-        status: "processing"
-      }
-    end
-  end
-
-
 
   private
 
@@ -53,7 +38,7 @@ class VideosController < ApplicationController
   end
 
   def set_video
-    @video = Video.find(params[:id])
+    @video = Video.includes(:qualities).find(params[:id])
   rescue ActiveRecord::RecordNotFound
     render json: {
       error: "Video not found"
