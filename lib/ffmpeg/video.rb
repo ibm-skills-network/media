@@ -109,7 +109,6 @@ module Ffmpeg
           "ffmpeg",
           "-hwaccel", "cuda",
           "-hwaccel_output_format", "cuda",
-          "-c:v", "av1_cuvid",
           "-i", input_path,
           "-vf", "scale_cuda='min(#{config[:width]},iw)':'min(#{config[:height]},ih)'",
           "-c:v", "av1_nvenc",
