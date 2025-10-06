@@ -107,8 +107,11 @@ module Ffmpeg
 
         command = [
           "ffmpeg",
+          "-hwaccel", "cuda",
+          "-hwaccel_output_format", "cuda",
+          "-c:v", "av1_cuvid",
           "-i", input_path,
-          "-vf", "scale='min(#{config[:width]},iw)':'min(#{config[:height]},ih)':flags=lanczos:force_original_aspect_ratio=decrease",
+          "-vf", "scale_cuda='min(#{config[:width]},iw)':'min(#{config[:height]},ih)'",
           "-c:v", "av1_nvenc",
           "-b:v", config[:bitrate],
           "-preset", "p4",
