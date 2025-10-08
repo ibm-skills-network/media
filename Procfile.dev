@@ -1,0 +1,2 @@
+web: bin/rails server -p 3000
+job: bundle exec sidekiq -q low -q default -q high -q critical
