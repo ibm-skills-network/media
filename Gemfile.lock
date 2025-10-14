@@ -332,6 +332,7 @@ DEPENDENCIES
   config
   debug
   faraday
+  jwt
   pg (~> 1.6)
   puma (>= 5.0)
   rails (~> 8.0.3)
