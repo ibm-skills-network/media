@@ -5,8 +5,8 @@ class ApplicationController < ActionController::API
 
   def authenticate_request
     token = extract_bearer_token
-    # change this to settings.jwt_secret after settings gem is added from other pr
-    @token_payload = (JWT.decode token, ENV.fetch("MEDIA_JWT_SECRET"), true, { algorithm: "HS256" })[0]
+
+    @token_payload = (JWT.decode token, Settings.jwt_secret, true, { algorithm: "HS256" })[0]
   rescue JWT::VerificationError, JWT::DecodeError
     render json: {}, status: :unauthorized
   end

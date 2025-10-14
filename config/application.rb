@@ -44,7 +44,7 @@ module Media
     # Configure ActiveJob to use Sidekiq
     config.active_job.queue_adapter = :sidekiq
     # This also configures session_options for use below
-    config.session_store :cookie_store, key: "_your_app_session"
+    config.session_store :cookie_store, key: "_media"
 
     # Required for all session management (regardless of session_store)
     config.middleware.use ActionDispatch::Cookies
