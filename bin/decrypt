@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+# Utility program to decrypt secrets file with helm-secrets and sops
+
+# -e  Exit immediately if a command exits with a non-zero status.
+set -e
+
+file=$1
+extension="${file##*.}"
+
+if [ $extension == "yaml" ] || [ $extension == "yml" ]
+then
+  helm secrets decrypt $file > $file.dec
+  exit 0
+fi
+
+if [ $extension == "json" ]
+then
+  echo "Decrypting $file"
+  sops -d -i $file
+  exit 0
+fi
+
+echo "Unsupported file extension $extension"
