@@ -20,7 +20,11 @@ Rails.application.routes.draw do
   # API v1 routes
   namespace :api do
     namespace :v1 do
-      resources :videos, only: [ :create, :show ]
+      namespace :async do
+        namespace :videos do
+          resources :qualities, only: [ :create, :show ]
+        end
+      end
     end
   end
 end

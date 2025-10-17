@@ -7,5 +7,7 @@ class CreateVideosQualities < ActiveRecord::Migration[8.0]
 
       t.timestamps
     end
+
+    add_index :videos_qualities, [ :video_id, :quality ], unique: true
   end
 end
