@@ -1,6 +1,6 @@
 module Videos
   class EncodeQualityJob < ApplicationJob
-  queue_as :default
+  queue_as :gpu
 
 
 

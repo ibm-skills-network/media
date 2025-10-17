@@ -45,3 +45,9 @@ group :development, :test do
   # Omakase Ruby styling [https://github.com/rails/rubocop-rails-omakase/]
   gem "rubocop-rails-omakase", require: false
 end
+
+group :development, :rubocop do
+  gem "rubocop-github", "~> 0.17.0" # Rubocop github flavour
+  gem "rubocop-performance"
+  gem "rubocop-rails"
+end
