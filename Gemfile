@@ -51,3 +51,5 @@ group :development, :rubocop do
   gem "rubocop-performance"
   gem "rubocop-rails"
 end
+
+gem "jbuilder", "~> 2.14"

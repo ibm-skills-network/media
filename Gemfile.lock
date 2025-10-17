@@ -135,6 +135,9 @@ GEM
       pp (>= 0.6.0)
       rdoc (>= 4.0.0)
       reline (>= 0.4.2)
+    jbuilder (2.14.1)
+      actionview (>= 7.0.0)
+      activesupport (>= 7.0.0)
     jmespath (1.6.2)
     json (2.15.0)
     jwt (3.1.2)
@@ -336,6 +339,7 @@ DEPENDENCIES
   config
   debug
   faraday
+  jbuilder (~> 2.14)
   jwt
   pg (~> 1.6)
   puma (>= 5.0)
