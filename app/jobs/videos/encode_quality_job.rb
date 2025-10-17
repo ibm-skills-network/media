@@ -6,22 +6,26 @@ module Videos
 
     # after sidekiq retries -> fail it
     def perform(quality_id)
-    quality = Videos::Quality.includes(:video).find(quality_id)
-    video = quality.video
+      quality = Videos::Quality.includes(:video).find(quality_id)
+      video = quality.video
 
-    return if quality.completed?
+      return if quality.completed?
 
+      with_lock do
+        raise "Quality already processing" if quality.processing?
+        quality.processing!
+      end
 
       case Ffmpeg::Video.mime_type(video.external_video_link)
       when "video/mp4"
-        temp_input = Tempfile.new([ "#{video.id}_input", ".mp4" ])
+          temp_input = Tempfile.new([ "#{video.id}_input", ".mp4" ])
       when "video/webm"
-        temp_input = Tempfile.new([ "#{video.id}_input", ".webm" ])
+          temp_input = Tempfile.new([ "#{video.id}_input", ".webm" ])
       when "video/quicktime"
-        temp_input = Tempfile.new([ "#{video.id}_input", ".mov" ])
+          temp_input = Tempfile.new([ "#{video.id}_input", ".mov" ])
       else
-        quality.unavailable!
-        return
+          quality.unavailable!
+          return
       end
 
       temp_output = Tempfile.new([ "#{video.id}_output", ".mp4" ])

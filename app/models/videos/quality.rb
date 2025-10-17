@@ -15,6 +15,7 @@ module Videos
     end
 
     def encode_video_later
+      pending!
       EncodeQualityJob.perform_later(self.id)
     end
   end

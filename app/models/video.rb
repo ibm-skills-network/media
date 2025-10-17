@@ -14,15 +14,8 @@ class Video < ApplicationRecord
   private
 
   def validate_external_video_link
-    return if external_video_link.blank?
-
-    response = Faraday.head(external_video_link)
-    content_type = response.headers["content-type"]
-
-    unless VIDEO_TYPES.include?(content_type)
+    unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(external_video_link))
       errors.add(:external_video_link, "must be a valid video file (mp4, webm, or mov)")
     end
-  rescue StandardError => _e
-    errors.add(:external_video_link, "is not a valid URL or cannot be reached")
   end
 end
