@@ -269,6 +269,10 @@ GEM
     rubocop-ast (1.47.1)
       parser (>= 3.3.7.2)
       prism (~> 1.4)
+    rubocop-github (0.17.0)
+      rubocop
+      rubocop-performance
+      rubocop-rails
     rubocop-performance (1.26.0)
       lint_roller (~> 1.1)
       rubocop (>= 1.75.0, < 2.0)
@@ -337,6 +341,9 @@ DEPENDENCIES
   puma (>= 5.0)
   rails (~> 8.0.3)
   redis
+  rubocop-github (~> 0.17.0)
+  rubocop-performance
+  rubocop-rails
   rubocop-rails-omakase
   sidekiq
   sidekiq-cron

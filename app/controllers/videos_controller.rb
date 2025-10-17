@@ -21,8 +21,6 @@ class VideosController < ApplicationController
 
   def show
     render json: {
-      title: @video.title,
-      description: @video.description,
       external_video_link: @video.external_video_link,
       qualities: @video.qualities.to_h { |q| [ q.quality, {
         status: q.status,
@@ -34,7 +32,7 @@ class VideosController < ApplicationController
   private
 
   def video_params
-    params.permit(:title, :description, :external_video_link)
+    params.permit(:external_video_link)
   end
 
   def set_video
