@@ -30,6 +30,7 @@ jobs:
     - name: Setup Database
       env:
         RAILS_ENV: test
+        DATABASE_URL: postgresql://postgres:password@localhost:5432/media_test
       run: bin/rails db:create db:schema:load
     - name: Install libvips
       env:
@@ -40,6 +41,7 @@ jobs:
     - name: Test with rspec
       env:
         RAILS_ENV: test
+        DATABASE_URL: postgresql://postgres:password@localhost:5432/media_test
       run: bundle exec rspec spec
     - name: Upload coverage report
       if: always()
@@ -90,6 +92,7 @@ jobs:
       if: steps.simplecov-resultset.outputs.cache-hit != 'true'
       env:
         RAILS_ENV: test
+        DATABASE_URL: postgresql://postgres:password@localhost:5432/media_test
       run: bin/rails db:create db:schema:load
     - name: Install libvips
       if: steps.simplecov-resultset.outputs.cache-hit != 'true'
@@ -100,6 +103,9 @@ jobs:
         sudo apt-get update && sudo apt-get install libvips-dev
     - name: Run test
       if: steps.simplecov-resultset.outputs.cache-hit != 'true'
+      env:
+        RAILS_ENV: test
+        DATABASE_URL: postgresql://postgres:password@localhost:5432/media_test
       run: bundle exec rspec
     - name: Upload coverage report
       if: always()
