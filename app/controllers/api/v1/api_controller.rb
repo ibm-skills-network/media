@@ -11,16 +11,10 @@ module Api
 
       rescue_from ActiveRecord::RecordNotFound, with: :error_not_found
 
-      rescue_from Pundit::NotAuthorizedError, with: :error_unauthorized
-
     protected
 
     def error_unprocessable_entity(message)
       render json: { error: message, status: 422 }, status: :unprocessable_entity
-    end
-
-    def error_unauthorized
-      render json: { error: "unauthorized", status: 401 }, status: :unauthorized
     end
 
     def error_not_found
