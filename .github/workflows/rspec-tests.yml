@@ -1,0 +1,131 @@
+name: Tests
+
+on: pull_request
+
+jobs:
+  test:
+    name: 'Test Head'
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:14-alpine
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        env:
+          CI: true
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: author_workbench_test
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        bundler-cache: true
+    - name: Setup Database
+      env:
+        RAILS_ENV: test
+      run: bin/rails db:create db:schema:load
+    - name: Install libvips
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run:
+        # we only need the library
+        sudo apt-get update && sudo apt-get install libvips-dev
+    - name: Test with rspec
+      env:
+        RAILS_ENV: test
+      run: bundle exec rspec spec
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v2
+      with:
+        name: head-result
+        path: coverage/.resultset.json
+    - name: Archive RSpec screenshots
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: rspec-screenshots
+        path: tmp/screenshots
+
+  base-coverage:
+    name: 'Get Base Coverage'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14-alpine
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+        env:
+          CI: true
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: author_workbench_test
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.base.ref }}
+    - id: base-ref-commit
+      run: echo "::set-output name=revision::$(git rev-parse HEAD)"
+    - name: simplecov resultset cache
+      id: simplecov-resultset
+      uses:  actions/cache@v2
+      with:
+        path: coverage/.resultset.json
+        key: simplecov-resultset-${{ steps.base-ref-commit.outputs.revision }}
+    - uses: ruby/setup-ruby@v1
+      if: steps.simplecov-resultset.outputs.cache-hit != 'true'
+      with:
+        bundler-cache: true
+    - name: Setup Database
+      if: steps.simplecov-resultset.outputs.cache-hit != 'true'
+      env:
+        RAILS_ENV: test
+      run: bin/rails db:create db:schema:load
+    - name: Install libvips
+      if: steps.simplecov-resultset.outputs.cache-hit != 'true'
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run:
+        # we only need the library
+        sudo apt-get update && sudo apt-get install libvips-dev
+    - name: Run test
+      if: steps.simplecov-resultset.outputs.cache-hit != 'true'
+      run: bundle exec rspec
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v2
+      with:
+        name: base-result
+        path: coverage/.resultset.json
+
+  compare:
+    name: 'Compare base & head coverages'
+    runs-on: ubuntu-latest
+    needs: [base-coverage, test]
+
+    steps:
+    - name: Download base artifact
+      uses: actions/download-artifact@v1
+      with:
+        name: base-result
+
+    - name: Download head artifact
+      uses: actions/download-artifact@v1
+      with:
+        name: head-result
+
+    - uses: kzkn/simplecov-resultset-diff-action@v1
+      with:
+        base-resultset-path: ./base-result/.resultset.json
+        head-resultset-path: ./head-result/.resultset.json
+        token: ${{ secrets.GITHUB_TOKEN }}

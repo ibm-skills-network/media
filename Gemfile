@@ -41,6 +41,14 @@ gem "faraday"
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ]
+
+    # RSpec for testing
+    gem "rspec-rails", "~> 6.0"
+    # FactoryBot for creating model instances for tests
+    gem "factory_bot_rails", "~> 6.2"
+    # Faker for generating fake data for tests
+    gem "faker", "~> 2.21"
+
 end
 
 group :development, :rubocop do
