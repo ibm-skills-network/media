@@ -16,7 +16,7 @@ jobs:
           CI: true
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: author_workbench_test
+          POSTGRES_DB: media_test 
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -66,7 +66,7 @@ jobs:
           CI: true
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: author_workbench_test
+          POSTGRES_DB: media_test
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
