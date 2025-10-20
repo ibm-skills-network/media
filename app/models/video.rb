@@ -5,8 +5,17 @@ class Video < ApplicationRecord
 
   VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
   def create_qualities!(video_params)
-    Videos::Quality.qualities.keys.each do |quality|
-      q = qualities.create!(quality: quality)
+    Videos::Quality::TranscodingProfile.labels.keys.each do |label|
+      quality_config = Videos::Quality::TranscodingProfile::QUALITY_CONFIGS[label]
+      q = qualities.create!
+      q.create_transcoding_profile!(
+        label: label,
+        codec: "av1_nvenc",
+        width: quality_config[:width],
+        height: quality_config[:height],
+        bitrate_string: quality_config[:bitrate],
+        bitrate_int: quality_config[:bitrate_int]
+      )
       q.encode_video_later
     end
   end

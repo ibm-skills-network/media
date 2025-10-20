@@ -6,7 +6,7 @@ module Videos
 
     # after sidekiq retries -> fail it
     def perform(quality_id)
-      quality = Videos::Quality.includes(:video).find(quality_id)
+      quality = Videos::Quality.includes(:video, :transcoding_profile).find(quality_id)
       video = quality.video
 
       return if quality.completed?
@@ -33,7 +33,8 @@ module Videos
       end
       temp_input.close
 
-      if Videos::Quality.qualities[Ffmpeg::Video.determine_max_quality(temp_input.path)] < Videos::Quality.qualities[quality.quality]
+      max_quality_label = Ffmpeg::Video.determine_max_quality(temp_input.path)
+      if Videos::Quality::TranscodingProfile.labels[max_quality_label] < Videos::Quality::TranscodingProfile.labels[quality.transcoding_profile.label]
         quality.unavailable!
         return
       end
@@ -42,7 +43,15 @@ module Videos
 
       Rails.logger.info "Input file size: #{File.size(temp_input.path)} bytes"
 
-      result = Ffmpeg::Video.encode_video(temp_input.path, temp_output.path, quality.quality)
+      profile = quality.transcoding_profile
+      result = Ffmpeg::Video.encode_video(
+        temp_input.path,
+        temp_output.path,
+        profile.codec,
+        profile.width,
+        profile.height,
+        profile.bitrate_string
+      )
 
       Rails.logger.info "Encode result: #{result.inspect}"
       Rails.logger.info "Output file size: #{File.size(temp_output.path)} bytes"
@@ -53,14 +62,7 @@ module Videos
           Rails.logger.info "File size being attached: #{file.size} bytes"
           quality.video_file.attach(io: file, filename: "#{video.id}_output.mp4")
         end
-        quality.status(:success)
-        quality.create_transcoding_profile(
-          codec: result[:codec],
-          label: result[:label],
-          width: result[:width],
-          height: result[:height],
-          bitrate: result[:bitrate]
-        )
+        quality.success!
         quality.save!
       else
         raise result[:error]

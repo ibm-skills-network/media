@@ -3,27 +3,6 @@ require "open3"
 # Module for handling FFmpeg video operations
 module Ffmpeg
   module Video
-    QUALITY_CONFIGS = {
-      "1080p" => {
-        width: 1920,
-        height: 1080,
-        bitrate: "2900k",
-        bitrate_int: 2_900_000
-      },
-      "720p" => {
-        width: 1280,
-        height: 720,
-        bitrate: "1800k",
-        bitrate_int: 1_800_000
-      },
-      "480p" => {
-        width: 854,
-        height: 480,
-        bitrate: "1000k",
-        bitrate_int: 1_000_000
-      }
-    }.freeze
-
     class << self
       # determines mime type and name of the external video
       # "https://cf-course-data-dev.static.labs.skills.network/zxXAVPH4SeNxCytSVdqL3A/1min%20-1-.mp4?t=0"
@@ -99,23 +78,20 @@ module Ffmpeg
       #
       # @param input_path [String] Path to the input video file
       # @param output_path [String] Path where the output video file will be saved
-      # @param quality [String] Quality level (480p, 720p, 1080p)
+      # @param codec [String] Video codec to use
+      # @param width [Integer] Target width
+      # @param height [Integer] Target height
+      # @param bitrate [String] Target bitrate (e.g., "1000k")
       # @return [Hash] A hash containing :success (Boolean) and either :output_file (String) or :error (String)
-      def encode_video(input_path, output_path, quality, codec = "av1_nvenc")
-        unless QUALITY_CONFIGS.key?(quality)
-          return { success: false, error: "Invalid quality: #{quality}. Valid options: #{QUALITY_CONFIGS.keys.join(', ')}" }
-        end
-
-        config = QUALITY_CONFIGS[quality]
-
+      def encode_video(input_path, output_path, codec, width, height, bitrate)
         command = [
           "ffmpeg",
           "-hwaccel", "cuda",
           "-hwaccel_output_format", "cuda",
           "-i", input_path,
-          "-vf", "scale_cuda='min(#{config[:width]},iw)':'min(#{config[:height]},ih)'",
+          "-vf", "scale_cuda='min(#{width},iw)':'min(#{height},ih)'",
           "-c:v", codec,
-          "-b:v", config[:bitrate],
+          "-b:v", bitrate,
           "-preset", "p4",
           "-c:a", "aac",
           "-b:a", "128k",
@@ -127,15 +103,7 @@ module Ffmpeg
         _stdout, stderr, status = Open3.capture3(*command)
 
         if status.success?
-          {
-            success: true,
-            output_file: output_path,
-            codec: codec,
-            label: quality,
-            width: config[:width],
-            height: config[:height],
-            bitrate: config[:bitrate_int]
-          }
+          { success: true, output_file: output_path }
         else
           { success: false, error: stderr }
         end

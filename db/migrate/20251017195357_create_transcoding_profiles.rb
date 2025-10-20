@@ -6,7 +6,8 @@ class CreateTranscodingProfiles < ActiveRecord::Migration[8.0]
       t.string :codec, null: false
       t.integer :width, null: false
       t.integer :height, null: false
-      t.integer :bitrate, null: false
+      t.string :bitrate_string, null: false
+      t.integer :bitrate_int, null: false
 
       t.timestamps
     end
