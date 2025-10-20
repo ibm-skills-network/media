@@ -52,6 +52,7 @@ group :development, :test do
 end
 
 group :development, :rubocop do
+  gem "rubocop-rails-omakase"
   gem "rubocop-github", "~> 0.17.0" # Rubocop github flavour
   gem "rubocop-performance"
   gem "rubocop-rails"
