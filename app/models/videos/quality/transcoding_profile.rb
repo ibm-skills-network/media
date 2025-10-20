@@ -9,18 +9,21 @@ module Videos
 
       TRANSCODING_PROFILES = {
         "1080p" => {
+          codec: "av1_nvenc",
           width: 1920,
           height: 1080,
           bitrate: "2900k",
           bitrate_int: 2_900_000
         },
         "720p" => {
+          codec: "av1_nvenc",
           width: 1280,
           height: 720,
           bitrate: "1800k",
           bitrate_int: 1_800_000
         },
         "480p" => {
+          codec: "av1_nvenc",
           width: 854,
           height: 480,
           bitrate: "1000k",
