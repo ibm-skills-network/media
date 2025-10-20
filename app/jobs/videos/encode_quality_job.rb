@@ -54,7 +54,13 @@ module Videos
           quality.video_file.attach(io: file, filename: "#{video.id}_output.mp4")
         end
         quality.status(:success)
-        quality.transcoding_log.create(codec: result[:codec], label: result[:label])
+        quality.create_transcoding_profile(
+          codec: result[:codec],
+          label: result[:label],
+          width: result[:width],
+          height: result[:height],
+          bitrate: result[:bitrate]
+        )
         quality.save!
       else
         raise result[:error]

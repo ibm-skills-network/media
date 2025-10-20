@@ -7,17 +7,20 @@ module Ffmpeg
       "1080p" => {
         width: 1920,
         height: 1080,
-        bitrate: "2900k"
+        bitrate: "2900k",
+        bitrate_int: 2_900_000
       },
       "720p" => {
         width: 1280,
         height: 720,
-        bitrate: "1800k"
+        bitrate: "1800k",
+        bitrate_int: 1_800_000
       },
       "480p" => {
         width: 854,
         height: 480,
-        bitrate: "1000k"
+        bitrate: "1000k",
+        bitrate_int: 1_000_000
       }
     }.freeze
 
@@ -124,7 +127,15 @@ module Ffmpeg
         _stdout, stderr, status = Open3.capture3(*command)
 
         if status.success?
-          { success: true, output_file: output_path, codec: codec, label: quality }
+          {
+            success: true,
+            output_file: output_path,
+            codec: codec,
+            label: quality,
+            width: config[:width],
+            height: config[:height],
+            bitrate: config[:bitrate_int]
+          }
         else
           { success: false, error: stderr }
         end

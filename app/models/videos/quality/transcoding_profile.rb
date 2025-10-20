@@ -1,7 +1,7 @@
 module Videos
   class Quality
-    class TranscodingLog < ApplicationRecord
-      self.table_name_prefix = "videos_qualities_"
+    class TranscodingProfile < ApplicationRecord
+      self.table_name = "videos_qualities_transcoding_profiles"
 
       belongs_to :quality, class_name: "Videos::Quality"
 

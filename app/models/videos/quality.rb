@@ -4,7 +4,7 @@ module Videos
 
     belongs_to :video
     has_one_attached :video_file
-    has_one :transcoding_log, class_name: "Videos::Quality::TranscodingLog", dependent: :destroy
+    has_one :transcoding_profile, class_name: "Videos::Quality::TranscodingProfile", dependent: :destroy
 
     enum :quality, { "480p" => 0, "720p" => 1, "1080p" => 2 }
     enum :status, { pending: 0, processing: 1, success: 2, failed: 3, unavailable: 4 }, default: :pending
