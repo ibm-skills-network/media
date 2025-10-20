@@ -98,7 +98,7 @@ module Ffmpeg
       # @param output_path [String] Path where the output video file will be saved
       # @param quality [String] Quality level (480p, 720p, 1080p)
       # @return [Hash] A hash containing :success (Boolean) and either :output_file (String) or :error (String)
-      def encode_video(input_path, output_path, quality)
+      def encode_video(input_path, output_path, quality, codec = "av1_nvenc")
         unless QUALITY_CONFIGS.key?(quality)
           return { success: false, error: "Invalid quality: #{quality}. Valid options: #{QUALITY_CONFIGS.keys.join(', ')}" }
         end
@@ -111,7 +111,7 @@ module Ffmpeg
           "-hwaccel_output_format", "cuda",
           "-i", input_path,
           "-vf", "scale_cuda='min(#{config[:width]},iw)':'min(#{config[:height]},ih)'",
-          "-c:v", "av1_nvenc",
+          "-c:v", codec,
           "-b:v", config[:bitrate],
           "-preset", "p4",
           "-c:a", "aac",
@@ -124,7 +124,7 @@ module Ffmpeg
         _stdout, stderr, status = Open3.capture3(*command)
 
         if status.success?
-          { success: true, output_file: output_path }
+          { success: true, output_file: output_path, codec: codec, label: quality }
         else
           { success: false, error: stderr }
         end
