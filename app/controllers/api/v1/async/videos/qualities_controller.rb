@@ -4,6 +4,8 @@ module Api
       module Videos
         class QualitiesController < ApiController
           before_action :set_video, only: [ :show ]
+          rate_limit to: 100, within: 1.hour, by: -> { request.remote_ip }, only: :create
+
           def create
             @video = Video.create!(video_params)
             @video.create_qualities!(video_params)
