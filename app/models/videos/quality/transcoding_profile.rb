@@ -7,7 +7,7 @@ module Videos
 
       enum :label, { "480p" => 0, "720p" => 1, "1080p" => 2 }
 
-      QUALITY_CONFIGS = {
+      TRANSCODING_PROFILES = {
         "1080p" => {
           width: 1920,
           height: 1080,
