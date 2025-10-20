@@ -43,13 +43,13 @@ jobs:
       run: bundle exec rspec spec
     - name: Upload coverage report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: head-result
         path: coverage/.resultset.json
     - name: Archive RSpec screenshots
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: rspec-screenshots
         path: tmp/screenshots
