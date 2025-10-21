@@ -74,11 +74,11 @@ Rails.application.configure do
     sentinel_config = {
       url: Settings.redis.url || "redis://localhost:6379",
       role: "master",
-      sentinels: {
+      sentinels: [ {
         host: Settings.redis.sentinel.host,
         port: Settings.redis.sentinel.port,
         password: Settings.redis.sentinel.password
-      },
+      } ],
       password: Settings.redis.sentinel.password
     }
     config.cache_store = :redis_cache_store, sentinel_config.merge(
