@@ -9,9 +9,9 @@ module Videos
       quality = Videos::Quality.includes(:video, :transcoding_profile).find(quality_id)
       video = quality.video
 
-      return if quality.completed?
+      return if quality.success?
 
-      with_lock do
+      quality.with_lock do
         raise "Quality already processing" if quality.processing?
 
         quality.processing!
