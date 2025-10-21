@@ -69,12 +69,13 @@ module Videos
           quality.video_file.attach(io: file, filename: "#{video.id}_output.mp4")
         end
         quality.success!
-        quality.save!
       else
         raise result[:error]
-        pending!
       end
     ensure
+      if quality.processing?
+        quality.pending!
+      end
       temp_input&.unlink
       temp_output&.unlink
     end
