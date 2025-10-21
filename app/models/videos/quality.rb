@@ -2,9 +2,9 @@ module Videos
   class Quality < ApplicationRecord
     self.table_name_prefix = "videos_"
 
-    belongs_to :video
+    belongs_to :video, class_name: "Video"
     has_one_attached :video_file
-    has_one :transcoding_profile, class_name: "Videos::Quality::TranscodingProfile", dependent: :destroy
+    has_one :transcoding_profile, class_name: "Videos::Quality::TranscodingProfile", foreign_key: "video_quality_id", dependent: :destroy
 
     delegate :label, to: :transcoding_profile
 

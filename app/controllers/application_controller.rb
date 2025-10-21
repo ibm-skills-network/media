@@ -6,6 +6,8 @@ class ApplicationController < ActionController::API
   private
 
   def authenticate_request
+    return if Rails.env.development?
+
     token = extract_bearer_token
 
     @token_payload = (JWT.decode token, Settings.jwt_secret, true, { algorithm: "HS256" })[0]

@@ -3,7 +3,7 @@ module Videos
     class TranscodingProfile < ApplicationRecord
       self.table_name = "videos_qualities_transcoding_profiles"
 
-      belongs_to :quality, class_name: "Videos::Quality"
+      belongs_to :video_quality, class_name: "Videos::Quality", foreign_key: "video_quality_id"
 
       enum :label, { "480p" => 0, "720p" => 1, "1080p" => 2 }
 

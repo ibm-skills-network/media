@@ -10,10 +10,11 @@ module Api
             @video = Video.create!(video_params)
             @video.create_qualities!(video_params)
 
-            render status: :created
+            render status: :created, formats: :json
           end
 
           def show
+            render formats: :json
           end
 
           private
@@ -23,7 +24,7 @@ module Api
           end
 
           def set_video
-            @video = Video.includes(:qualities).find(params[:id])
+            @video = Video.includes(qualities: :transcoding_profile).find(params[:id])
           end
         end
       end
