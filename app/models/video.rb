@@ -6,20 +6,8 @@ class Video < ApplicationRecord
   VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
 
   def create_qualities!(video_params)
-    Videos::Quality::TranscodingProfile.labels.keys.each do |label|
-      transcoding_profile_data = Videos::Quality::TranscodingProfile::TRANSCODING_PROFILES[label]
-
-      # Build the quality with its associated transcoding profile
-      q = qualities.build
-      q.build_transcoding_profile(
-        label: label,
-        codec: transcoding_profile_data[:codec],
-        width: transcoding_profile_data[:width],
-        height: transcoding_profile_data[:height],
-        bitrate_string: transcoding_profile_data[:bitrate],
-        bitrate_int: transcoding_profile_data[:bitrate_int]
-      )
-      q.save!
+    Setting::TRANSCODING_PROFILES.each do |transcoding_profile|
+      q = qualities.create!(transcoding_profile: transcoding_profile)
       q.encode_video_later
     end
   end

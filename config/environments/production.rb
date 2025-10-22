@@ -88,7 +88,7 @@ Rails.application.configure do
   else
     # Use a different cache store in production.
     # config.cache_store = :mem_cache_store
-    redis_url = ENV.fetch("REDIS_URL", "redis://localhost:6379").strip
+    redis_url = ENV.fetch("REDIS_URL", "redis://localhost:6381").strip
 
     config.cache_store = :redis_cache_store, { url: redis_url, connect_timeout: 30, read_timeout: 2, write_timeout: 2, reconnect_attempts: 1 }
   end

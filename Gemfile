@@ -38,6 +38,8 @@ gem "faraday"
 # Use Rack CORS for handling Cross-Origin Resource Sharing (CORS), making cross-origin Ajax possible
 # gem "rack-cors"
 
+gem "data_migrate"
+
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
   gem "debug", platforms: %i[ mri windows ]
@@ -48,7 +50,6 @@ group :development, :test do
     gem "factory_bot_rails", "~> 6.2"
     # Faker for generating fake data for tests
     gem "faker", "~> 2.21"
-
 end
 
 group :development, :rubocop do

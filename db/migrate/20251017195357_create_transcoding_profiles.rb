@@ -1,7 +1,6 @@
 class CreateTranscodingProfiles < ActiveRecord::Migration[8.0]
   def change
     create_table :videos_qualities_transcoding_profiles do |t|
-      t.references :video_quality, null: false, foreign_key: { to_table: :videos_qualities }
       t.integer :label, null: false
       t.string :codec, null: false
       t.integer :width, null: false

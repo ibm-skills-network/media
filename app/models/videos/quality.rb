@@ -4,7 +4,7 @@ module Videos
 
     belongs_to :video, class_name: "Video"
     has_one_attached :video_file
-    has_one :transcoding_profile, class_name: "Videos::Quality::TranscodingProfile", foreign_key: "video_quality_id", dependent: :destroy
+    belongs_to :transcoding_profile, class_name: "Videos::Quality::TranscodingProfile"
 
     delegate :label, to: :transcoding_profile
 

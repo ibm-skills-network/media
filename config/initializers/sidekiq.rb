@@ -18,7 +18,7 @@ redis_config = if Settings.redis && Settings.redis.sentinel
   }
 else
   {
-    url: ENV.fetch("REDIS_URL", "redis://localhost:6379").strip,
+    url: ENV.fetch("REDIS_URL", "redis://localhost:6381").strip,
     network_timeout: redis_network_timeout
   }
 end

@@ -1,6 +1,7 @@
 services:
   redis:
     image: library/redis:7-alpine
+    command: redis-server --port 6381
     ports:
       - 6381:6381
 

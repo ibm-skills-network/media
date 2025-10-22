@@ -78,20 +78,17 @@ module Ffmpeg
       #
       # @param input_path [String] Path to the input video file
       # @param output_path [String] Path where the output video file will be saved
-      # @param codec [String] Video codec to use
-      # @param width [Integer] Target width
-      # @param height [Integer] Target height
-      # @param bitrate [String] Target bitrate (e.g., "1000k")
+      # @param transcoding_profile [Videos::Quality::TranscodingProfile] The transcoding profile to use
       # @return [Hash] A hash containing :success (Boolean) and either :output_file (String) or :error (String)
-      def encode_video(input_path, output_path, codec, width, height, bitrate)
+      def encode_video(input_path, output_path, transcoding_profile)
         command = [
           "ffmpeg",
           "-hwaccel", "cuda",
           "-hwaccel_output_format", "cuda",
           "-i", input_path,
-          "-vf", "scale_cuda='min(#{width},iw)':'min(#{height},ih)'",
-          "-c:v", codec,
-          "-b:v", bitrate,
+          "-vf", "scale_cuda='min(#{transcoding_profile.width},iw)':'min(#{transcoding_profile.height},ih)'",
+          "-c:v", transcoding_profile.codec,
+          "-b:v", transcoding_profile.bitrate_string,
           "-preset", "p4",
           "-c:a", "aac",
           "-b:a", "128k",

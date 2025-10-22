@@ -49,14 +49,10 @@ module Videos
 
       Rails.logger.info "Input file size: #{File.size(temp_input.path)} bytes"
 
-      profile = quality.transcoding_profile
       result = Ffmpeg::Video.encode_video(
         temp_input.path,
         temp_output.path,
-        profile.codec,
-        profile.width,
-        profile.height,
-        profile.bitrate_string
+        quality.transcoding_profile
       )
 
       Rails.logger.info "Encode result: #{result.inspect}"
