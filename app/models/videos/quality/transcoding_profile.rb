@@ -6,30 +6,6 @@ module Videos
       has_many :qualities, class_name: "Videos::Quality", foreign_key: "transcoding_profile_id", dependent: :restrict_with_error
 
       enum :label, { "480p" => 0, "720p" => 1, "1080p" => 2 }
-
-      TRANSCODING_PROFILES = {
-        "1080p" => {
-          codec: "av1_nvenc",
-          width: 1920,
-          height: 1080,
-          bitrate: "2900k",
-          bitrate_int: 2_900_000
-        },
-        "720p" => {
-          codec: "av1_nvenc",
-          width: 1280,
-          height: 720,
-          bitrate: "1800k",
-          bitrate_int: 1_800_000
-        },
-        "480p" => {
-          codec: "av1_nvenc",
-          width: 854,
-          height: 480,
-          bitrate: "1000k",
-          bitrate_int: 1_000_000
-        }
-      }.freeze
     end
   end
 end

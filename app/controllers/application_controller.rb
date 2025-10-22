@@ -1,7 +1,7 @@
 class ApplicationController < ActionController::API
   before_action :authenticate_request
 
-  rate_limit to: 100, within: 1.minute, by: -> { request.remote_ip }
+  rate_limit to: 1200, within: 1.minute, by: -> { request.remote_ip }
 
   private
 
