@@ -7,7 +7,7 @@ module Api
 
           def create
             @video = Video.create!(video_params)
-            @video.create_qualities!(video_params)
+            @video.create_qualities!
 
             render status: :created
           end

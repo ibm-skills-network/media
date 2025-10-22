@@ -5,7 +5,7 @@ class Video < ApplicationRecord
 
   VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
 
-  def create_qualities!(video_params)
+  def create_qualities!
     Setting::TRANSCODING_PROFILES.each do |transcoding_profile|
       q = qualities.create!(transcoding_profile: transcoding_profile)
       q.encode_video_later
