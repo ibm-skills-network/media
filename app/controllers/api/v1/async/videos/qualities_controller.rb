@@ -9,11 +9,10 @@ module Api
             @video = Video.create!(video_params)
             @video.create_qualities!(video_params)
 
-            render status: :created, formats: :json
+            render status: :created
           end
 
           def show
-            render formats: :json
           end
 
           private
