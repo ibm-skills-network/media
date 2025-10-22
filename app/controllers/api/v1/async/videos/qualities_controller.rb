@@ -3,12 +3,11 @@ module Api
     module Async
       module Videos
         class QualitiesController < ApiController
-          before_action :set_video, only: [ :show ]
+          before_action :set_quality, only: [ :show ]
 
           def create
             @video = Video.create!(video_params)
-            @video.create_qualities!
-
+            @qualities = @video.create_qualities!
             render status: :created
           end
 
@@ -21,8 +20,8 @@ module Api
             params.permit(:external_video_link)
           end
 
-          def set_video
-            @video = Video.includes(qualities: :transcoding_profile).find(params[:id])
+          def set_quality
+            @quality = ::Videos::Quality.includes(:video, :transcoding_profile).find(params[:id])
           end
         end
       end
