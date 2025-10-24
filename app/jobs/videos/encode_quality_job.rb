@@ -17,33 +17,19 @@ module Videos
         quality.processing!
       end
 
-      case Ffmpeg::Video.mime_type(video.external_video_link)
-      when "video/mp4"
-          temp_input = Tempfile.new([ "#{video.id}_input", ".mp4" ])
-      when "video/webm"
-          temp_input = Tempfile.new([ "#{video.id}_input", ".webm" ])
-      when "video/quicktime"
-          temp_input = Tempfile.new([ "#{video.id}_input", ".mov" ])
-      else
-          quality.unavailable!
-          return
+      temp_input = video.download_to_file
+      unless temp_input
+        quality.unavailable!
+        return
       end
 
-      temp_output = Tempfile.new([ "#{video.id}_output", ".mp4" ])
-
-      temp_input.binmode
-      Faraday.get(video.external_video_link) do |req|
-        req.options.on_data = Proc.new do |chunk, overall_received_bytes|
-          temp_input.write(chunk)
-        end
-      end
-      temp_input.close
-
-      max_quality_label = Ffmpeg::Video.determine_max_quality(temp_input.path)
+      max_quality_label = Video.determine_max_quality(temp_input.path)
       if Videos::Quality::TranscodingProfile.labels[max_quality_label] < Videos::Quality::TranscodingProfile.labels[quality.transcoding_profile.label]
         quality.unavailable!
         return
       end
+
+      temp_output = Tempfile.new([ "#{video.id}_output", ".mp4" ])
 
       temp_output.close
 
