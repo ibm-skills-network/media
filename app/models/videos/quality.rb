@@ -12,7 +12,6 @@ module Videos
 
 
     def encode_video
-      processing!
       EncodeQualityJob.perform_now(self.id)
     end
 
