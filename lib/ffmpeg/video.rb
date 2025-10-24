@@ -5,7 +5,6 @@ module Ffmpeg
   module Video
     class << self
       # determines mime type and name of the external video
-      # "https://cf-course-data-dev.static.labs.skills.network/zxXAVPH4SeNxCytSVdqL3A/1min%20-1-.mp4?t=0"
       def mime_type(url)
         begin
           response = Faraday.head(url)
@@ -15,6 +14,7 @@ module Ffmpeg
 
        response.headers["Content-Type"]
       end
+
       # Extracts video metadata using ffprobe
       #
       # @param file_path [String] Path to the video file
@@ -33,28 +33,6 @@ module Ffmpeg
         raise "Failed to extract video metadata" unless status.success?
 
         JSON.parse(stdout)
-      end
-
-      # Determines the maximum quality level of a video based on resolution and bitrate
-      #
-      # @param file_path [String] Path to the video file
-      # @return [String] Quality level (480p, 720p, 1080p)
-      def determine_max_quality(file_path)
-        metadata = video_metadata(file_path)
-
-        video_stream = metadata["streams"].find { |stream| stream["width"].present? && stream["height"].present? }
-
-        width = video_stream["width"]
-        height = video_stream["height"]
-        bitrate = video_stream["bit_rate"].to_i
-
-        if height >= 1080 && width >= 1920 && bitrate >= 2_000_000 # 2 Mbps
-          "1080p"
-        elsif height >= 720 && width >= 1280 && bitrate >= 1_000_000 # 1 Mbps
-          "720p"
-        else
-          "480p"
-        end
       end
 
       # Checks if CUDA hardware acceleration is supported by FFmpeg
