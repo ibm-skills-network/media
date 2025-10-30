@@ -3,8 +3,12 @@ module Videos
     queue_as :gpu
 
 
+    sidekiq_retries_exhausted do |msg, exception|
+      Rails.logger.error("Failed #{msg['class']} with #{msg['args']}: #{exception.message}")
+      quality = Videos::Quality.find(msg["args"].first)
+      quality.failed! if quality.present?
+    end
 
-    # after sidekiq retries -> fail it
     def perform(quality_id)
       quality = Videos::Quality.includes(:video, :transcoding_profile).find(quality_id)
       video = quality.video

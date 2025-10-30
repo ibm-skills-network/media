@@ -31,6 +31,9 @@ Rails.application.configure do
   # Store uploaded files on the local file system in a temporary directory.
   config.active_storage.service = :test
 
+  # Enqueued job support
+  config.active_job.queue_adapter = :test
+
   # Print deprecation notices to the stderr.
   config.active_support.deprecation = :stderr
 

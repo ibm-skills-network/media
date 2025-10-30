@@ -10,6 +10,9 @@
 # Ignore all environment files.
 /.env*
 
+# Ignore rspec state file
+spec/examples.txt
+
 # Ignore all logfiles and tempfiles.
 /log/*
 /tmp/*
