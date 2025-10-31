@@ -109,7 +109,7 @@ GEM
     cronex (0.15.0)
       tzinfo
       unicode (>= 0.4.4.5)
-    data_migrate (11.3.0)
+    data_migrate (11.3.1)
       activerecord (>= 6.1)
       railties (>= 6.1)
     date (3.4.1)
@@ -261,7 +261,7 @@ GEM
       zeitwerk (~> 2.6)
     rainbow (3.1.1)
     rake (13.3.1)
-    rdoc (6.15.0)
+    rdoc (6.15.1)
       erb
       psych (>= 4.0.0)
       tsort
@@ -336,7 +336,7 @@ GEM
       sidekiq (>= 6.5.0)
     stringio (3.1.7)
     thor (1.4.0)
-    timeout (0.4.3)
+    timeout (0.4.4)
     tsort (0.2.0)
     tzinfo (2.0.6)
       concurrent-ruby (~> 1.0)
