@@ -1,3 +1,5 @@
+require "sidekiq/web"
+
 Rails.application.routes.draw do
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
@@ -7,4 +9,22 @@ Rails.application.routes.draw do
 
   # Defines the root path route ("/")
   # root "posts#index"
+  # Sidekiq Web UI with Basic Auth
+  Sidekiq::Web.use Rack::Auth::Basic do |username, password|
+    ActiveSupport::SecurityUtils.secure_compare(username, Settings.sidekiq_credentials.username) &&
+      ActiveSupport::SecurityUtils.secure_compare(password, Settings.sidekiq_credentials.password)
+  end
+
+  mount Sidekiq::Web => "/sidekiq"
+
+  # API v1 routes
+  namespace :api do
+    namespace :v1, defaults: { format: :json } do
+      namespace :async do
+        namespace :videos do
+          resources :qualities, only: [ :create, :show ]
+        end
+      end
+    end
+  end
 end

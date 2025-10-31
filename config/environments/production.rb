@@ -19,7 +19,7 @@ Rails.application.configure do
   # config.asset_host = "http://assets.example.com"
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  config.active_storage.service = :ibmcos
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = true
@@ -65,6 +65,31 @@ Rails.application.configure do
   #   /.*\.example\.com/ # Allow requests from subdomains like `www.example.com`
   # ]
   #
-  # Skip DNS rebinding protection for the default health check endpoint.
+  # Skip DNS rebinding protection for the nodefault health check endpoint.
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+
+
+  if Settings.redis
+
+    sentinel_config = {
+      url: Settings.redis.url || "redis://localhost:6379",
+      role: "master",
+      sentinels: [ {
+        host: Settings.redis.sentinel.host,
+        port: Settings.redis.sentinel.port,
+        password: Settings.redis.sentinel.password
+      } ],
+      password: Settings.redis.sentinel.password
+    }
+    config.cache_store = :redis_cache_store, sentinel_config.merge(
+      namespace: "cache",
+      expires_in: 1.day
+    )
+  else
+    # Use a different cache store in production.
+    # config.cache_store = :mem_cache_store
+    redis_url = ENV.fetch("REDIS_URL", "redis://localhost:6381").strip
+
+    config.cache_store = :redis_cache_store, { url: redis_url, connect_timeout: 30, read_timeout: 2, write_timeout: 2, reconnect_attempts: 1 }
+  end
 end

@@ -1,0 +1,14 @@
+jwt_secret: ENC[AES256_GCM,data:HEmWRpkLstBvb2qnoJsy59MdEDwj+9T6Io/Luhimv/KKq/IutI1XtP3faTj3IAP9c3mw9XGkIOmQ5iNlHVVp6M+0A8Qjpss/mWIgRFZxGHISfxA7tzYbDw==,iv:Jl/C1iG9xoHtQXw0dgV0/GoYV8xCI0IN3naiDXGfdqw=,tag:kNG6EaRKq7tD2/4s4oQGaA==,type:str]
+sidekiq_credentials:
+    username: ENC[AES256_GCM,data:7OyA6Gk=,iv:+81zBfEv3A+IykQJlwyH+XeS3Ow4tOiWXDWo2TMHLh0=,tag:uSmLuBsHF8tWyiCdX0ZvLw==,type:str]
+    password: ENC[AES256_GCM,data:iKf7M2v1BSNhYXtC8A==,iv:e52y5Z5ADMY72+WZujfgNByjykRmZSV8eImdXQuBqtA=,tag:AlY26GKegS5O+a5eUr7weg==,type:str]
+sops:
+    kms:
+        - arn: arn:aws:kms:us-east-1:975050075037:alias/skills-network-team
+          created_at: "2025-10-14T14:14:42Z"
+          enc: AQICAHgsNGp3OIKeSGQPdfUiu2fSH3Ysp/azRvNg0cWdt1sWAQHoGiZxghhJu5LIqrefZgYWAAAAfjB8BgkqhkiG9w0BBwagbzBtAgEAMGgGCSqGSIb3DQEHATAeBglghkgBZQMEAS4wEQQM5/HcgzS1ZhiTBcTcAgEQgDvIbjSvlN+3FTmtss2paUaK4d9XD0gLE8VtqKXjbEsif258nTVox2VwrDryfCxx+XwxFjHsZRTVQ8C7RA==
+          aws_profile: skills-network
+    lastmodified: "2025-10-14T14:30:47Z"
+    mac: ENC[AES256_GCM,data:CBxV31H69NBDirgWL0R/rcwyj8eO3eot9PCLIE/b1emnacx5X3iyrNEa/UIIgLxhIqL4BlSCLFkOGelE3A7+mAWD/RucErjTlXwYmN1cr4r3jqjnWCgTOGWXw2x2r4hzbB9Q6SeBwNNSulHo+FdVNBAM1/yiTrDpoU7Eq/lJ+1o=,iv:qcRv7uC58SM91ds5NNsdxQmCRkJNXHKUHg72i0Gs92o=,tag:tZ+fMr4NKrPu0TBAfNj0xQ==,type:str]
+    unencrypted_suffix: _unencrypted
+    version: 3.10.2

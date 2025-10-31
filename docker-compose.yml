@@ -1,0 +1,16 @@
+services:
+  redis:
+    image: library/redis:7-alpine
+    command: redis-server --port 6381
+    ports:
+      - 6381:6381
+
+  postgres:
+    # this image is just postgres with pgvector installed
+    image: pgvector/pgvector:pg16
+    ports:
+      - 5437:5437
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: media_development

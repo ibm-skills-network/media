@@ -10,6 +10,9 @@
 # Ignore all environment files.
 /.env*
 
+# Ignore rspec state file
+spec/examples.txt
+
 # Ignore all logfiles and tempfiles.
 /log/*
 /tmp/*
@@ -30,3 +33,9 @@
 
 # Ignore master key for decrypting credentials and more.
 /config/master.key
+
+config/settings.local.yml
+config/settings/*.local.yml
+config/environments/*.local.yml
+
+*.dec

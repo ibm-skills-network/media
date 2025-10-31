@@ -1,0 +1,23 @@
+module Videos
+  class Quality < ApplicationRecord
+    self.table_name_prefix = "videos_"
+
+    belongs_to :video, class_name: "Video"
+    has_one_attached :video_file
+    belongs_to :transcoding_profile, class_name: "Videos::Quality::TranscodingProfile"
+
+    delegate :label, to: :transcoding_profile
+
+    enum :status, { pending: 0, processing: 1, success: 2, failed: 3, unavailable: 4 }, default: :pending
+
+
+    def encode_video
+      EncodeQualityJob.perform_now(self.id)
+    end
+
+    def encode_video_later
+      pending!
+      EncodeQualityJob.perform_later(self.id)
+    end
+  end
+end
