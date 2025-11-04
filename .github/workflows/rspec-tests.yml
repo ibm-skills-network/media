@@ -124,11 +124,13 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: base-result
+        path: base-result
 
     - name: Download head artifact
       uses: actions/download-artifact@v4
       with:
         name: head-result
+        path: head-result
 
     - uses: kzkn/simplecov-resultset-diff-action@v1
       with:
