@@ -10,8 +10,7 @@ module Videos
     end
 
     def perform(quality_id)
-      quality = Videos::Quality.includes(:video, :transcoding_profile).find(quality_id)
-      video = quality.video
+      quality = Videos::Quality.includes(:transcoding_profile).find(quality_id)
 
       return if quality.success?
 
@@ -21,19 +20,19 @@ module Videos
         quality.processing!
       end
 
-      temp_input = video.download_to_file
+      temp_input = quality.download_to_file
       unless temp_input
         quality.unavailable!
         return
       end
 
-      max_quality_label = Video.determine_max_quality(temp_input.path)
+      max_quality_label = Videos::Quality.determine_max_quality(temp_input.path)
       if Videos::Quality::TranscodingProfile.labels[max_quality_label] < Videos::Quality::TranscodingProfile.labels[quality.transcoding_profile.label]
         quality.unavailable!
         return
       end
 
-      temp_output = Tempfile.new([ "#{video.id}_output", ".mp4" ])
+      temp_output = Tempfile.new([ "#{quality.id}_output", ".mp4" ])
 
       temp_output.close
 
@@ -52,7 +51,7 @@ module Videos
       if result[:success]
         File.open(temp_output.path, "rb") do |file|
           Rails.logger.info "File size being attached: #{file.size} bytes"
-          quality.video_file.attach(io: file, filename: "#{video.id}_output.mp4")
+          quality.video_file.attach(io: file, filename: "#{quality.id}_output.mp4")
         end
         quality.success!
       else

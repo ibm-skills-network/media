@@ -45,20 +45,13 @@ ActiveRecord::Schema[8.1].define(version: 2025_10_22_183059) do
   create_table "data_migrations", primary_key: "version", id: :string, force: :cascade do |t|
   end
 
-  create_table "videos", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "external_video_link"
-    t.datetime "updated_at", null: false
-  end
-
   create_table "videos_qualities", force: :cascade do |t|
     t.datetime "created_at", null: false
+    t.string "external_video_link"
     t.integer "status", default: 0
     t.bigint "transcoding_profile_id", null: false
     t.datetime "updated_at", null: false
-    t.bigint "video_id", null: false
     t.index ["transcoding_profile_id"], name: "index_videos_qualities_on_transcoding_profile_id"
-    t.index ["video_id"], name: "index_videos_qualities_on_video_id"
   end
 
   create_table "videos_qualities_transcoding_profiles", force: :cascade do |t|
@@ -74,6 +67,5 @@ ActiveRecord::Schema[8.1].define(version: 2025_10_22_183059) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "videos_qualities", "videos"
   add_foreign_key "videos_qualities", "videos_qualities_transcoding_profiles", column: "transcoding_profile_id"
 end

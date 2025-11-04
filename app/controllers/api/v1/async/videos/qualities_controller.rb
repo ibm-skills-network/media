@@ -6,8 +6,15 @@ module Api
           before_action :set_quality, only: [ :show ]
 
           def create
-            @video = Video.create!(video_params)
-            @qualities = @video.create_qualities!
+            transcoding_profile = ::Videos::Quality::TranscodingProfile.find_by!(label: quality_params[:label])
+
+            @quality = ::Videos::Quality.new(
+              external_video_link: quality_params[:external_video_link],
+              transcoding_profile: transcoding_profile
+            )
+            @quality.save!
+            @quality.encode_video_later
+
             render status: :created
           end
 
@@ -16,12 +23,12 @@ module Api
 
           private
 
-          def video_params
-            params.permit(:external_video_link)
+          def quality_params
+            params.permit(:external_video_link, :label)
           end
 
           def set_quality
-            @quality = ::Videos::Quality.includes(:video, :transcoding_profile).find(params[:id])
+            @quality = ::Videos::Quality.includes(:transcoding_profile).find(params[:id])
           end
         end
       end
