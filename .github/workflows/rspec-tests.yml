@@ -49,6 +49,7 @@ jobs:
       with:
         name: head-result
         path: coverage/.resultset.json
+        include-hidden-files: true
     - name: Archive RSpec screenshots
       if: always()
       uses: actions/upload-artifact@v4
