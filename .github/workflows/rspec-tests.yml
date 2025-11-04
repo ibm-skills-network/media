@@ -121,12 +121,12 @@ jobs:
 
     steps:
     - name: Download base artifact
-      uses: actions/download-artifact@v1
+      uses: actions/download-artifact@v4
       with:
         name: base-result
 
     - name: Download head artifact
-      uses: actions/download-artifact@v1
+      uses: actions/download-artifact@v4
       with:
         name: head-result
 
