@@ -45,7 +45,9 @@ module Videos
     end
 
     def download_to_file
-      extension = case Ffmpeg::Video.mime_type(external_video_link)
+      mime_type = Ffmpeg::Video.mime_type(external_video_link)
+
+      extension = case mime_type
       when "video/mp4"
         ".mp4"
       when "video/webm"
@@ -53,7 +55,7 @@ module Videos
       when "video/quicktime"
         ".mov"
       else
-        return nil
+        extract_extension_from_url(external_video_link)
       end
 
       temp_file = Tempfile.new([ "#{id}_input", extension ])
@@ -79,6 +81,23 @@ module Videos
     end
 
     private
+
+    def extract_extension_from_url(url)
+      uri = URI.parse(url)
+      path = uri.path
+
+      # Extract the file extension
+      ext = File.extname(path).downcase
+
+      case ext
+      when ".mp4", ".webm", ".mov"
+        ext
+      else
+        nil
+      end
+    rescue URI::InvalidURIError
+      nil
+    end
 
     def validate_external_video_link
       unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(external_video_link))
