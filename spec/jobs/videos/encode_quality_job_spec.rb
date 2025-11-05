@@ -3,9 +3,8 @@ require "rails_helper"
 RSpec.describe Videos::EncodeQualityJob, type: :job do
   include_context "ffmpeg video api"
 
-  let(:video) { create(:video) }
   let(:transcoding_profile) { create(:transcoding_profile, :p720) }
-  let(:quality) { create(:quality, video: video, transcoding_profile: transcoding_profile, status: :pending) }
+  let(:quality) { create(:quality, external_video_link: "https://example.com/video.mp4", transcoding_profile: transcoding_profile, status: :pending) }
 
   describe "#perform" do
     context "when quality is already successful" do
@@ -30,7 +29,7 @@ RSpec.describe Videos::EncodeQualityJob, type: :job do
 
     context "when video download fails" do
       before do
-        allow_any_instance_of(Video).to receive(:download_to_file).and_return(nil)
+        allow_any_instance_of(Videos::Quality).to receive(:download_to_file).and_return(nil)
       end
 
       it "marks quality as unavailable" do
