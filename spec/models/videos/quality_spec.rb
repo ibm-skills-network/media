@@ -38,7 +38,7 @@ RSpec.describe Videos::Quality, type: :model do
   end
 
   describe "#download_to_file" do
-    let(:quality) { create(:quality) }
+    let(:quality) { create(:quality, external_video_link: "https://example.com/video.flv") }
 
     it "downloads the video and creates a tempfile" do
       temp_file = quality.download_to_file

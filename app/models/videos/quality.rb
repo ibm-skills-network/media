@@ -58,6 +58,8 @@ module Videos
         extract_extension_from_url(external_video_link)
       end
 
+      return nil unless extension.present?
+
       temp_file = Tempfile.new([ "#{id}_input", extension ])
       temp_file.binmode
 
