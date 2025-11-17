@@ -30,7 +30,7 @@ jobs:
     needs: build-ffmpeg
     uses: ibm-skills-network/.github/.github/workflows/release.yml@main
     with:
-      image: icr.io/skills-network/media/patch
+      image: icr.io/skills-network/media
       docker_file: utils/Dockerfile
       docker_context: .
       docker_target: release
