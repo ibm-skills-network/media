@@ -51,7 +51,7 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
     rm -rf /tmp/ffmpeg
 
 # Switch to runtime base to reduce image size
-FROM nvidia/cuda:12.0.1-runtime-ubuntu22.04
+FROM nvidia/cuda:12.0.1-runtime-ubuntu22.04 AS release
 
 ENV DEBIAN_FRONTEND=noninteractive
 

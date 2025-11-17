@@ -23,6 +23,7 @@ jobs:
       image: icr.io/skills-network/media/ffmpeg
       docker_file: utils/ffmpeg/Dockerfile
       docker_context: .
+      docker_target: release
     secrets: inherit
 
   build-app:
