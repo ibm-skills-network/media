@@ -6,6 +6,9 @@ on:
     paths:
       - 'utils/ffmpeg/Dockerfile'
       - '.github/workflows/release-ffmpeg.yml'
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       suffix:
