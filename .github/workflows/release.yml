@@ -17,7 +17,16 @@ on:
         required: false
   repository_dispatch:
 jobs:
+  build-ffmpeg:
+    uses: ibm-skills-network/.github/.github/workflows/release.yml@main
+    with:
+      image: icr.io/skills-network/media/ffmpeg
+      docker_target: release
+      dockerfile: utils/ffmpeg/Dockerfile
+    secrets: inherit
+
   build:
+    needs: build-ffmpeg
     uses: ibm-skills-network/.github/.github/workflows/release.yml@main
     with:
       image: icr.io/skills-network/media

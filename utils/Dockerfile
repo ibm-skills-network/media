@@ -1,50 +1,4 @@
-# Stage 1: Build FFmpeg with CUDA support
-# replace stage 1 and stage 3 with the base image from lib/ffmpeg/Dockerfile
-FROM nvidia/cuda:12.0.1-devel-ubuntu22.04 AS ffmpeg-builder
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH="/usr/local/cuda/bin:${PATH}"
-
-WORKDIR /app
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    yasm \
-    nasm \
-    cmake \
-    libtool \
-    unzip \
-    wget \
-    git \
-    pkg-config \
-    libnuma1 \
-    libnuma-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install NVIDIA codec headers
-RUN git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git /tmp/nv-codec-headers && \
-    cd /tmp/nv-codec-headers && \
-    make install PREFIX=/usr && \
-    cd -
-
-# Build FFmpeg
-RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
-    cd /tmp/ffmpeg && \
-    ./configure \
-        --enable-nonfree \
-        --enable-cuda-nvcc \
-        --enable-libnpp \
-        --extra-cflags=-I/usr/local/cuda/include \
-        --extra-ldflags=-L/usr/local/cuda/lib64 \
-        --disable-static \
-        --enable-shared && \
-    make -j$(nproc) && \
-    make install && \
-    ldconfig && \
-    rm -rf /tmp/ffmpeg
-
-
-# Stage 2: Build Rails app
+# Stage 1: Build Rails app
 FROM ubuntu:22.04 AS builder
 
 ENV APP_HOME /app
@@ -95,8 +49,8 @@ COPY app ./app
 ENV SECRET_KEY_BASE=dummysecret
 
 
-# Stage 3: Production image - Switch to Ubuntu base for glibc compatibility
-FROM nvidia/cuda:12.0.1-runtime-ubuntu22.04 AS release
+# Stage 2: Production image - Use prebuilt FFmpeg image
+FROM icr.io/skills-network/media/ffmpeg:latest AS release
 USER root
 ENV APP_HOME /app
 ENV SECRET_KEY_BASE=dummysecret
@@ -127,14 +81,7 @@ COPY --from=builder /usr/local/lib/libruby.so* /usr/local/lib/
 COPY --from=builder /usr/local/include/ruby-3.4.0 /usr/local/include/ruby-3.4.0
 COPY --from=builder $APP_HOME $APP_HOME
 
-# Copy FFmpeg binaries + libs from ffmpeg-builder (careful not to overwrite Ruby libs)
-COPY --from=ffmpeg-builder /usr/local/bin/ffmpeg /usr/local/bin/
-COPY --from=ffmpeg-builder /usr/local/bin/ffprobe /usr/local/bin/
-COPY --from=ffmpeg-builder /usr/local/lib/libav*.so* /usr/local/lib/
-COPY --from=ffmpeg-builder /usr/local/lib/libsw*.so* /usr/local/lib/
-COPY --from=ffmpeg-builder /usr/local/lib/libpostproc*.so* /usr/local/lib/
-# Copy CUDA runtime libraries needed for FFmpeg
-COPY --from=ffmpeg-builder /usr/local/cuda/lib64/ /usr/local/cuda/lib64/
+# FFmpeg is already included in the base image (icr.io/skills-network/media/ffmpeg:latest)
 
 RUN ldconfig
 
