@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 USER root
 
-# Install Ruby 3.4.6 from source
+# Install Ruby 3.4.7 from source
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     wget \
@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     nodejs \
     npm \
-    && wget https://cache.ruby-lang.org/pub/ruby/3.4/ruby-3.4.6.tar.gz \
+    && wget https://cache.ruby-lang.org/pub/ruby/3.4/ruby-3.4.7.tar.gz \
     && tar -xzf ruby-3.4.6.tar.gz \
     && cd ruby-3.4.6 \
     && ./configure --disable-install-doc \
