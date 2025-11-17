@@ -24,6 +24,7 @@ jobs:
       docker_file: utils/ffmpeg/Dockerfile
       docker_context: .
       docker_target: release
+      maximize_free_space: true
     secrets: inherit
 
   build-app:
