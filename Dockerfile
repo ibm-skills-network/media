@@ -23,13 +23,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nodejs \
     npm \
     && wget https://cache.ruby-lang.org/pub/ruby/3.4/ruby-3.4.7.tar.gz \
-    && tar -xzf ruby-3.4.6.tar.gz \
-    && cd ruby-3.4.6 \
+    && tar -xzf ruby-3.4.7.tar.gz \
+    && cd ruby-3.4.7 \
     && ./configure --disable-install-doc \
     && make -j$(nproc) \
     && make install \
     && cd .. \
-    && rm -rf ruby-3.4.6 ruby-3.4.6.tar.gz \
+    && rm -rf ruby-3.4.7 ruby-3.4.7.tar.gz \
     && gem install bundler \
     && rm -rf /var/lib/apt/lists/*
 
