@@ -60,6 +60,7 @@ group :development, :rubocop do
   gem "rubocop-rails"
 end
 
+
 group :production do
   gem "instana"
 end

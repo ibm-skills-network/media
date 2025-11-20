@@ -49,7 +49,8 @@ jobs:
     secrets: inherit
 
   build-app:
-    needs: build-ffmpeg
+    needs: [check-ffmpeg-changes, build-ffmpeg]
+    if: always() && !cancelled()
     uses: ibm-skills-network/.github/.github/workflows/release.yml@main
     with:
       image: icr.io/skills-network/media

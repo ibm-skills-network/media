@@ -15,10 +15,19 @@ module Api
             @quality.save!
             @quality.encode_video_later
 
-            render status: :created
+            render json: {
+              id: @quality.id,
+              label: @quality.label,
+              status: @quality.status
+            }, status: :created
           end
 
           def show
+            render json: {
+              status: @quality.status,
+              url: @quality.video_file&.url,
+              label: @quality.transcoding_profile.label
+            }, status: :ok
           end
 
           private
