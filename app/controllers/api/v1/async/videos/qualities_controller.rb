@@ -15,11 +15,7 @@ module Api
             @quality.save!
             @quality.encode_video_later
 
-            render json: {
-              id: @quality.id,
-              label: @quality.label,
-              status: @quality.status
-            }, status: :created
+            render "show", status: :created
           end
 
           def show
