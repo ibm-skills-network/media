@@ -9,7 +9,7 @@ services:
     # this image is just postgres with pgvector installed
     image: pgvector/pgvector:pg16
     ports:
-      - 5437:5437
+      - 5437:5432
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password

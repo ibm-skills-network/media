@@ -26,7 +26,7 @@ default:
 development:
   primary:
     <<: *primary
-    url: <%= ENV["DATABASE_URL"] || "postgresql://postgres:password@localhost:5432/media_development?schema=public&connection_limit=5" %>
+    url: <%= ENV["DATABASE_URL"] || "postgresql://postgres:password@localhost:5437/media_development?schema=public&connection_limit=5" %>
 
   # The specified database role being used to connect to postgres.
   # To create additional roles in postgres see `$ createuser --help`.
