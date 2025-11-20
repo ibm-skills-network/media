@@ -1,4 +1,0 @@
-jwt_secret: "dummy"
-sidekiq_credentials:
-  username: ""
-  password: ""
