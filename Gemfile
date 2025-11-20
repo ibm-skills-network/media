@@ -61,5 +61,8 @@ group :development, :rubocop do
 end
 
 
+group :production do
+  gem "instana"
+end
 
 gem "jbuilder", "~> 2.14"
