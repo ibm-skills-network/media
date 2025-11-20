@@ -17,28 +17,7 @@ on:
         required: false
   repository_dispatch:
 jobs:
-  check-ffmpeg-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      changed: ${{ steps.changed.outputs.changed }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Check if Dockerfile changed
-        id: changed
-        run: |
-          if git diff HEAD^ HEAD --name-only | grep -q "utils/ffmpeg/Dockerfile"; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Dockerfile changed, will build"
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Dockerfile unchanged, skipping build"
-          fi
-
   build-ffmpeg:
-    needs: check-ffmpeg-changes
-    if: needs.check-ffmpeg-changes.outputs.changed == 'true'
     uses: ibm-skills-network/.github/.github/workflows/release.yml@main
     with:
       image: icr.io/skills-network/media/ffmpeg
