@@ -23,6 +23,11 @@ module Api
           end
 
           def show
+            render json: {
+              status: @quality.status,
+              url: @quality.video_file&.url,
+              label: @quality.transcoding_profile.label
+            }, status: :ok
           end
 
           private
