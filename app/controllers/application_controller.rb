@@ -11,7 +11,8 @@ class ApplicationController < ActionController::API
     token = extract_bearer_token
 
     @token_payload = (JWT.decode token, Settings.jwt_secret, true, { algorithm: "HS256" })[0]
-  rescue JWT::VerificationError, JWT::DecodeError
+    raise "Unauthorized" unless @token_payload["admin"]
+  rescue JWT::VerificationError, JWT::DecodeError, RuntimeError
     render json: {}, status: :unauthorized
   end
 
