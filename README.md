@@ -84,8 +84,6 @@
 - **Asynchronous Processing** - Background job processing with Sidekiq
 - **Quality Validation** - Automatic resolution detection and upscaling prevention
 - **Cloud Storage** - S3 and IBM Cloud Object Storage integration
-- **RESTful API** - JWT-authenticated API endpoints
-- **Concurrent Processing** - Multi-queue job management with dedicated GPU queue
 
 ### Supported Formats
 
@@ -125,119 +123,17 @@
 
 ## API Documentation
 
-### Base URL
-```
-http://localhost:3009/api/v1/async/videos/qualities
-```
-
-### Authentication
-All endpoints require JWT authentication (except in development mode).
-
-```bash
-Authorization: Bearer <jwt_token>
-```
-
-JWT token must contain `admin: true` claim.
-
-### Endpoints
-
-#### Create Transcoding Job
-
-**POST** `/api/v1/async/videos/qualities`
-
-Request:
-```json
-{
-  "external_video_link": "https://example.com/video.mp4",
-  "transcoding_profile_label": "720p"
-}
-```
-
-Response (201 Created):
-```json
-{
-  "id": 1,
-  "label": "720p",
-  "status": "pending"
-}
-```
-
-**Parameters:**
-- `external_video_link` (string, required) - URL to source video
-- `transcoding_profile_label` (string, required) - Quality level: `"480p"`, `"720p"`, or `"1080p"`
-
-#### Get Quality Status
-
-**GET** `/api/v1/async/videos/qualities/:id`
-
-Response (200 OK):
-```json
-{
-  "status": "success",
-  "url": "https://s3.amazonaws.com/bucket/video.mp4",
-  "label": "720p"
-}
-```
-
-**Status Values:**
-- `pending` - Job queued but not started
-- `processing` - Currently transcoding
-- `success` - Transcoding completed successfully
-- `failed` - Transcoding failed
-- `unavailable` - Source video inaccessible or lower quality than requested
-
----
+Refer to the swagger
 
 ## Setup Guide
 
 ### Development Setup
 
-#### 1. Install System Dependencies
+#### 1. Configure S3 Storage
 
-**Ubuntu/Debian:**
+For production, configure S3 or IBM Cloud Object Storage:
+
 ```bash
-# Install Docker and Docker Compose (recommended)
-# PostgreSQL and Redis will run via docker-compose
-
-# FFmpeg with CUDA (see Docker build for full instructions)
-# Or use Docker image: icr.io/skills-network/media/ffmpeg:0.2.3
-```
-
-**macOS:**
-```bash
-# Install Docker Desktop (includes Docker Compose)
-# PostgreSQL and Redis will run via docker-compose
-```
-
-#### 2. Environment Variables
-
-Create `config/settings/development.local.yml`:
-```yaml
-jwt_secret: your_development_jwt_secret
-
-sidekiq:
-  credentials:
-    username: admin
-    password: password
-```
-
-For production, use environment variables:
-```bash
-# Rails
-export RAILS_ENV=production
-export SECRET_KEY_BASE=your_secret_key
-export PORT=3000
-
-# JWT
-export SETTINGS_JWT_SECRET=your_jwt_secret
-
-# Database - Use your production database URL
-export DATABASE_URL=your_database_url
-
-# Redis - Production uses Redis Sentinel for high availability
-export REDIS_URL=your_redis_sentinel_url
-
-# Storage (S3/IBM COS)
 export SETTINGS_IBMCOS_ACCESS_KEY_ID=your_key
 export SETTINGS_IBMCOS_SECRET_ACCESS_KEY=your_secret
 export SETTINGS_IBMCOS_ENDPOINT=https://s3.region.cloud-object-storage.appdomain.cloud
@@ -249,6 +145,8 @@ export SETTINGS_IBMCOS_BUCKET=your_bucket
 
 #### Build Images
 
+**Note:** The image `icr.io/skills-network/media/ffmpeg:0.2.3` cannot be used locally. You must compile the FFmpeg image yourself from `utils/ffmpeg/Dockerfile` and replace the image tag in your Docker configuration.
+
 **Build FFmpeg with CUDA:**
 ```bash
 cd utils/ffmpeg
@@ -259,20 +157,6 @@ docker build -t ffmpeg-cuda:latest .
 ```bash
 # From project root
 docker build -t media:latest .
-```
-
-#### Run with Docker Compose
-
-```bash
-# Start PostgreSQL and Redis
-docker-compose up -d
-
-# Run application
-docker run -p 3009:3009 \
-  -e DATABASE_URL=postgresql://postgres:password@host.docker.internal:5437/media_development \
-  -e REDIS_URL=redis://host.docker.internal:6381 \
-  --gpus all \
-  media:latest
 ```
 
 **Note:** GPU access requires NVIDIA Docker runtime (`--gpus all` flag).
@@ -396,12 +280,6 @@ Settings.sidekiq.credentials.username
 Settings.ibmcos.bucket
 ```
 
-Override with environment variables:
-```bash
-export SETTINGS_JWT_SECRET=secret
-export SETTINGS_SIDEKIQ__CREDENTIALS__USERNAME=admin
-```
-
 ---
 
 ## GPU Requirements
@@ -452,45 +330,6 @@ ffmpeg -encoders | grep nvenc  # Should show av1_nvenc
 - Tracks performance, errors, and traces
 
 ---
-
-## CI/CD
-
-### GitHub Actions Workflows
-
-**Lint** (`.github/workflows/lint.yml`)
-- Runs Rubocop on pull requests
-- Uses Reviewdog for inline PR comments
-
-**Test** (`.github/workflows/rspec-tests.yml`)
-- Runs RSpec test suite
-- Compares code coverage
-- Requires PostgreSQL and Redis services
-
-**Release** (`.github/workflows/release.yml`)
-- Builds and pushes Docker images
-- Detects FFmpeg Dockerfile changes
-- Publishes to IBM Container Registry
-
----
-
-## Deployment
-
-### Docker Deployment
-
-```bash
-# Build images
-docker build -t media:latest .
-
-# Run with GPU support
-docker run --gpus all \
-  -p 3000:3000 \
-  -e RAILS_ENV=production \
-  -e SECRET_KEY_BASE=... \
-  -e DATABASE_URL=... \
-  -e REDIS_URL=... \
-  -e SETTINGS_JWT_SECRET=... \
-  media:latest
-```
 
 ### Production Checklist
 
