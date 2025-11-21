@@ -1,5 +1,3 @@
-![Build Status](https://github.com/ibm-skills-network/mark/actions/workflows/release.yml/badge.svg)
-
 # Media - GPU-Accelerated Video Transcoding Service
 
 **Media** is a high-performance video transcoding service built with Rails that leverages NVIDIA CUDA hardware acceleration to efficiently transcode videos to multiple quality levels. The service processes videos asynchronously using background jobs and stores outputs to cloud storage.
@@ -192,45 +190,6 @@ spec/
 ### Test Database
 
 Tests use a separate database (`media_test`) configured in `config/database.yml`.
-
----
-
-## Architecture Overview
-
-### Request Flow
-
-1. **API Request** → `QualitiesController` creates `Videos::Quality` record with status `pending`
-2. **Job Enqueue** → `Videos::EncodeQualityJob` queued to `gpu` queue in Sidekiq
-3. **Job Processing**:
-   - Download video from `external_video_link`
-   - Validate resolution meets profile requirements
-   - Transcode using FFmpeg with CUDA acceleration
-   - Upload output to cloud storage (Active Storage)
-   - Update status to `success` or `failed`
-4. **Status Check** → Client polls GET endpoint for completion
-
-### Database Schema
-
-**videos_qualities**
-- `id`, `transcoding_profile_id`, `external_video_link`, `status`, `created_at`, `updated_at`
-- Has one attached `video_file` via Active Storage
-
-**videos_qualities_transcoding_profiles**
-- `id`, `label`, `codec`, `width`, `height`, `bitrate_string`, `bitrate_int`, `created_at`, `updated_at`
-
-### Background Jobs
-
-**Queue Priority:**
-- `critical` - Highest priority
-- `high` - High priority
-- `gpu` - **GPU-intensive encoding jobs**
-- `default` - Normal priority
-- `low` - Lowest priority
-
-**Job Class:** `Videos::EncodeQualityJob`
-- Queue: `gpu`
-- Retry: Enabled with exhaustion handler
-- Timeout: Default Sidekiq timeout
 
 ### FFmpeg Integration
 
