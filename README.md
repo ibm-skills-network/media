@@ -52,37 +52,24 @@
    bundle install
    ```
 
-3. **Setup database**
+3. **Start services and setup database**
 
    ```bash
    # Start PostgreSQL and Redis
    docker-compose up -d
 
-   # Create and setup database
-   bin/rails db:create
-   bin/rails db:schema:load
-   bin/rails db:data:migrate  # Load transcoding profiles
+   # Create database, load schema, and seed transcoding profiles
+   bin/rails db:setup
    ```
 
-4. **Configure environment**
-
-   Create `config/settings/development.local.yml`:
-   ```yaml
-   jwt_secret: your_development_secret
-   ```
-
-5. **Start the application**
+4. **Start the application**
 
    ```bash
    # Start web server and background workers
-   foreman start
-
-   # Or individually:
-   # bin/rails server -p 3009
-   # bundle exec sidekiq -q low -q default -q high -q critical -q gpu
+   bin/dev
    ```
 
-6. **Access the application**
+5. **Access the application**
    - API: http://localhost:3009
    - Sidekiq UI: http://localhost:3009/sidekiq
 
@@ -209,11 +196,8 @@ Response (200 OK):
 
 **Ubuntu/Debian:**
 ```bash
-# PostgreSQL
-sudo apt-get install postgresql postgresql-contrib libpq-dev
-
-# Redis
-sudo apt-get install redis-server
+# Install Docker and Docker Compose (recommended)
+# PostgreSQL and Redis will run via docker-compose
 
 # FFmpeg with CUDA (see Docker build for full instructions)
 # Or use Docker image: icr.io/skills-network/media/ffmpeg:0.2.3
@@ -221,24 +205,11 @@ sudo apt-get install redis-server
 
 **macOS:**
 ```bash
-brew install postgresql@16 redis
-# For FFmpeg with CUDA, use Docker or build from source
+# Install Docker Desktop (includes Docker Compose)
+# PostgreSQL and Redis will run via docker-compose
 ```
 
-#### 2. Configure Database
-
-Edit `config/database.yml` or set environment variable:
-```bash
-export DATABASE_URL=postgresql://postgres:password@localhost:5437/media_development
-```
-
-#### 3. Configure Redis
-
-```bash
-export REDIS_URL=redis://localhost:6381
-```
-
-#### 4. Environment Variables
+#### 2. Environment Variables
 
 Create `config/settings/development.local.yml`:
 ```yaml
@@ -260,11 +231,11 @@ export PORT=3000
 # JWT
 export SETTINGS_JWT_SECRET=your_jwt_secret
 
-# Database
-export DATABASE_URL=postgresql://user:pass@host:5432/media_production
+# Database - Use your production database URL
+export DATABASE_URL=your_database_url
 
-# Redis
-export REDIS_URL=redis://localhost:6379
+# Redis - Production uses Redis Sentinel for high availability
+export REDIS_URL=your_redis_sentinel_url
 
 # Storage (S3/IBM COS)
 export SETTINGS_IBMCOS_ACCESS_KEY_ID=your_key
@@ -272,19 +243,6 @@ export SETTINGS_IBMCOS_SECRET_ACCESS_KEY=your_secret
 export SETTINGS_IBMCOS_ENDPOINT=https://s3.region.cloud-object-storage.appdomain.cloud
 export SETTINGS_IBMCOS_REGION=us-south
 export SETTINGS_IBMCOS_BUCKET=your_bucket
-```
-
-#### 5. Database Setup
-
-```bash
-# Create databases
-bin/rails db:create
-
-# Load schema
-bin/rails db:schema:load
-
-# Load transcoding profiles (480p, 720p, 1080p)
-bin/rails db:data:migrate
 ```
 
 ### Docker Setup
