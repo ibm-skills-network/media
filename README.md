@@ -255,7 +255,7 @@ For production, use environment variables:
 # Rails
 export RAILS_ENV=production
 export SECRET_KEY_BASE=your_secret_key
-export PORT=3000
+export PORT=3009
 
 # JWT
 export SETTINGS_JWT_SECRET=your_jwt_secret
@@ -525,7 +525,7 @@ docker build -t media:latest .
 
 # Run with GPU support
 docker run --gpus all \
-  -p 3000:3000 \
+  -p 3009:3009 \
   -e RAILS_ENV=production \
   -e SECRET_KEY_BASE=... \
   -e DATABASE_URL=... \
