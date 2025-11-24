@@ -121,7 +121,7 @@
 
 ## API Documentation
 
-Refer to the swagger
+Refer to the swagger documentation, at /swagger
 
 ## Setup Guide
 
