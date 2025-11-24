@@ -1,8 +1,10 @@
 require "sidekiq/web"
 
 Rails.application.routes.draw do
-  mount Rswag::Ui::Engine => "/swagger"
-  mount Rswag::Api::Engine => "/swagger"
+  if Rails.env.development?
+    mount Rswag::Ui::Engine => "/swagger"
+    mount Rswag::Api::Engine => "/swagger"
+  end
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
