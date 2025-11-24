@@ -114,6 +114,7 @@ RSpec.describe 'api/v1/async/videos/qualities', type: :request do
         let(:transcoding_profile) { create(:transcoding_profile, label: "1080p") }
         let(:quality) { create(:quality, transcoding_profile: transcoding_profile) }
         let(:id) { quality.id }
+        let(:Authorization) { nil }
 
         run_test!
       end
