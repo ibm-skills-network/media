@@ -1,0 +1,135 @@
+---
+openapi: 3.0.1
+info:
+  title: API V1
+  version: v1
+paths:
+  "/api/v1/async/videos/qualities":
+    post:
+      summary: Create a video quality
+      tags:
+      - Videos - Qualities
+      description: Creates a new video quality with the specified transcoding profile
+        and external video link. Enqueues an async job to encode the video.
+      security:
+      - bearer_auth: []
+      parameters:
+      - name: external_video_link
+        in: query
+        required: true
+        description: URL of the external video to be transcoded
+        schema:
+          type: string
+      - name: transcoding_profile_label
+        in: query
+        required: true
+        description: Label of the transcoding profile to use (e.g., "720p", "1080p")
+        schema:
+          type: string
+      responses:
+        '201':
+          description: Quality created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: ID of the created quality
+                  label:
+                    type: string
+                    description: Label of the transcoding profile
+                  status:
+                    type: string
+                    description: Current status of the video quality
+                required:
+                - id
+                - label
+                - status
+        '404':
+          description: Transcoding profile not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  "/api/v1/async/videos/qualities/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      description: ID of the video quality
+      schema:
+        type: integer
+    get:
+      summary: Retrieve a video quality
+      tags:
+      - Videos - Qualities
+      description: Retrieves the status and details of a specific video quality, including
+        the transcoded video URL if available.
+      security:
+      - bearer_auth: []
+      responses:
+        '200':
+          description: Quality found successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Current status of the video quality
+                  url:
+                    type: string
+                    nullable: true
+                    description: URL of the transcoded video file (null if not yet
+                      processed)
+                  label:
+                    type: string
+                    description: Label of the transcoding profile used
+                required:
+                - status
+                - url
+                - label
+        '404':
+          description: Quality not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+servers:
+- url: https://{defaultHost}
+  variables:
+    defaultHost:
+      default: localhost:3009
+components:
+  securitySchemes:
+    bearer_auth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

@@ -51,6 +51,8 @@ group :development, :test do
   gem "factory_bot_rails", "~> 6.2"
   # Faker for generating fake data for tests
   gem "faker", "~> 2.21"
+  # Swagger documentation
+  gem "rswag"
 end
 
 group :development, :rubocop do
@@ -64,5 +66,3 @@ end
 group :production do
   gem "instana"
 end
-
-gem "jbuilder", "~> 2.14"
