@@ -58,6 +58,7 @@ RSpec.describe 'api/v1/async/videos/qualities', type: :request do
         let(:external_video_link) { "https://example.com/video.mp4" }
         let(:transcoding_profile_label) { "720p" }
 
+        let(:Authorization) { nil }
         run_test!
       end
     end
