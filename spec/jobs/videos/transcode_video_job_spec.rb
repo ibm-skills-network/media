@@ -38,7 +38,11 @@ RSpec.describe Videos::TranscodeVideoJob, type: :job do
 
     context "when transcoding succeeds" do
       before do
-        allow_any_instance_of(Video).to receive(:transcode_video!).and_call_original
+        allow(Open3).to receive(:capture3) do |*args|
+          temp_file_path = args.last
+          File.write(temp_file_path, "fake video content") if temp_file_path.is_a?(String) && temp_file_path.end_with?(".mp4")
+          [ "", "", double(success?: true) ]
+        end
       end
 
       it "sets status to success for all transcoding processes" do

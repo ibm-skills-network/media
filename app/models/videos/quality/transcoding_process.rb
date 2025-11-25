@@ -4,6 +4,7 @@ module Videos
       self.table_name = "videos_qualities_transcoding_processes"
 
       has_one_attached :video_file
+      belongs_to :video
       belongs_to :transcoding_profile, class_name: "Videos::Quality::TranscodingProfile"
 
       delegate :label, to: :transcoding_profile
@@ -34,8 +35,10 @@ module Videos
       private
 
       def validate_external_video_link
-        unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(external_video_link))
-          errors.add(:external_video_link, "must be a valid video file (mp4, webm, or mov)")
+        return unless video&.external_video_link.present?
+
+        unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(video.external_video_link))
+          errors.add(:base, "video must be a valid video file (mp4, webm, or mov)")
         end
       end
     end

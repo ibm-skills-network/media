@@ -1,5 +1,5 @@
 module Videos
-  class Quality
+  module Quality
     class TranscodingProfile < ApplicationRecord
       self.table_name = "videos_qualities_transcoding_profiles"
 
