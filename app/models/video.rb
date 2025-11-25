@@ -3,7 +3,7 @@ class Video < ApplicationRecord
 
   validates :external_video_link, presence: true
 
-  def create_transcoding_process!(transcoding_profile)
+  def create_transcoding_process!(transcoding_profiles)
     transcoding_profiles.each do |transcoding_profile|
       transcoding_processes.create!(transcoding_profile: transcoding_profile)
     end
