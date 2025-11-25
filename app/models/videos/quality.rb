@@ -3,6 +3,7 @@ module Videos
     self.table_name_prefix = "videos_"
 
     has_one_attached :video_file
+    belongs_to :video, class_name: "Video"
     belongs_to :transcoding_profile, class_name: "Videos::Quality::TranscodingProfile"
 
     delegate :label, to: :transcoding_profile
