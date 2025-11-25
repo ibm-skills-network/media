@@ -1,18 +1,18 @@
 class Video < ApplicationRecord
-  has_many :qualities, class_name: "Videos::Quality", dependent: :destroy
+  has_many :transcoding_processes, class_name: "Videos::Quality::TranscodingProcess", dependent: :destroy
 
   validates :external_video_link, presence: true
 
-  def create_qualities!(transcoding_profiles)
+  def create_transcoding_process!(transcoding_profile)
     transcoding_profiles.each do |transcoding_profile|
-      qualities.create!(transcoding_profile: transcoding_profile)
+      transcoding_processes.create!(transcoding_profile: transcoding_profile)
     end
   end
 
-  def encode_qualities!
-    return if qualities.empty?
+  def transcode_video!
+    return if transcoding_processes.empty?
 
-    qualities.each { |q| q.processing! unless q.success? }
+    transcoding_processes.each { |tp| tp.processing! unless tp.success? }
 
     command = [
       "ffmpeg",
@@ -24,15 +24,15 @@ class Video < ApplicationRecord
 
     temp_outputs = {}
 
-    qualities.each do |quality|
-      temp_file = Tempfile.new([ "#{quality.id}_output", ".mp4" ])
+    transcoding_processes.each do |transcoding_process|
+      temp_file = Tempfile.new([ "#{transcoding_process.id}_output", ".mp4" ])
       temp_file.close
-      temp_outputs[quality] = temp_file
+      temp_outputs[transcoding_process] = temp_file
 
       command += [
-        "-vf", "scale_cuda=min(#{quality.transcoding_profile.width},iw):min(#{quality.transcoding_profile.height},ih)",
-        "-c:v", quality.transcoding_profile.codec,
-        "-b:v", quality.transcoding_profile.bitrate_string,
+        "-vf", "scale_cuda=min(#{transcoding_process.transcoding_profile.width},iw):min(#{transcoding_process.transcoding_profile.height},ih)",
+        "-c:v", transcoding_process.transcoding_profile.codec,
+        "-b:v", transcoding_process.transcoding_profile.bitrate_string,
         "-preset", "p4",
         "-c:a", "aac",
         "-b:a", "128k",
@@ -44,18 +44,18 @@ class Video < ApplicationRecord
     _stdout, stderr, status = Open3.capture3(*command)
 
     if status.success?
-      temp_outputs.each do |quality, temp_file|
+      temp_outputs.each do |transcoding_process, temp_file|
         if File.exist?(temp_file.path) && File.size(temp_file.path) > 0
           File.open(temp_file.path, "rb") do |file|
-            quality.video_file.attach(io: file, filename: "#{quality.id}_output.mp4")
+            transcoding_process.video_file.attach(io: file, filename: "transcoded_#{transcoding_process.id}_output.mp4")
           end
-          quality.success!
+          transcoding_process.success!
         else
-          quality.failed!
+          transcoding_process.failed!
         end
       end
     else
-      qualities.each { |q| q.failed! unless q.success? || q.unavailable? }
+      transcoding_processes.each { |tp| tp.failed! unless tp.success? || tp.unavailable? }
       raise "FFmpeg encoding failed: #{stderr}"
     end
 

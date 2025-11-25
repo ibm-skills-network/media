@@ -10,14 +10,14 @@ module Api
             ::Videos::Quality::TranscodingProfile.find_by!(label: label)
           end
 
-          @video.create_qualities!(transcoding_profiles)
-          ::Videos::EncodeQualitiesJob.perform_later(@video.id)
+          @video.create_transcoding_process!(transcoding_profiles)
+          ::Videos::TranscodeVideoJob.perform_later(@video.id)
           render json: {
-            qualities: @video.qualities.map do |quality|
+            transcoding_processes: @video.transcoding_processes.map do |transcoding_process|
               {
-                id: quality.id,
-                label: quality.label,
-                status: quality.status
+                id: transcoding_process.id,
+                label: transcoding_process.label,
+                status: transcoding_process.status
               }
             end
           }, status: :created

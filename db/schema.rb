@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_10_22_183059) do
+ActiveRecord::Schema[8.1].define(version: 2025_11_25_194037) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -45,15 +45,6 @@ ActiveRecord::Schema[8.1].define(version: 2025_10_22_183059) do
   create_table "data_migrations", primary_key: "version", id: :string, force: :cascade do |t|
   end
 
-  create_table "videos_qualities", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.string "external_video_link"
-    t.integer "status", default: 0
-    t.bigint "transcoding_profile_id", null: false
-    t.datetime "updated_at", null: false
-    t.index ["transcoding_profile_id"], name: "index_videos_qualities_on_transcoding_profile_id"
-  end
-
   create_table "videos_qualities_transcoding_profiles", force: :cascade do |t|
     t.integer "bitrate_int", null: false
     t.string "bitrate_string", null: false
@@ -67,5 +58,4 @@ ActiveRecord::Schema[8.1].define(version: 2025_10_22_183059) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "videos_qualities", "videos_qualities_transcoding_profiles", column: "transcoding_profile_id"
 end
