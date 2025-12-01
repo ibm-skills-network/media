@@ -32,7 +32,7 @@ class Video < ApplicationRecord
     split_count = processes_to_transcode.length
     if split_count > 1
       split_outputs = (0...split_count).map { |i| "[in#{i}]" }.join
-      filter_complex << "[0:v]split_cuda=#{split_count}#{split_outputs}"
+      filter_complex << "[0:v]split_cuda=outputs=#{split_count}#{split_outputs}"
     end
 
     # Build temp files and scaling filters
