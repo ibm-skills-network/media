@@ -28,9 +28,8 @@ jobs:
       - name: Check if Dockerfile changed since last release
         id: changed
         run: |
-          # Get the latest release tag
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-
+          # Get the latest stable release tag (exclude prereleases, must follow semver)
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
           if [ -z "$LATEST_TAG" ]; then
             echo "No previous release found, will build"
             echo "changed=true" >> $GITHUB_OUTPUT
