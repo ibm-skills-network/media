@@ -78,31 +78,6 @@ module Ffmpeg
       # @param output_path [String] Path where the output video file will be saved
       # @param transcoding_profile [Videos::TranscodingProfile] The transcoding profile to use
       # @return [Hash] A hash containing :success (Boolean) and either :output_file (String) or :error (String)
-      def encode_video(input_path, output_path, transcoding_profile)
-        command = [
-          "ffmpeg",
-          "-hwaccel", "cuda",
-          "-hwaccel_output_format", "cuda",
-          "-i", input_path,
-          "-vf", "scale_cuda='min(#{transcoding_profile.width},iw)':'min(#{transcoding_profile.height},ih)'",
-          "-c:v", transcoding_profile.codec,
-          "-b:v", transcoding_profile.bitrate_string,
-          "-preset", "p4",
-          "-c:a", "aac",
-          "-b:a", "128k",
-          "-ac", "2",
-          "-y",
-          output_path
-        ]
-
-        _stdout, stderr, status = Open3.capture3(*command)
-
-        if status.success?
-          { success: true, output_file: output_path }
-        else
-          { success: false, error: stderr }
-        end
-      end
     end
   end
 end
