@@ -23,14 +23,27 @@ class Video < ApplicationRecord
     ]
 
     temp_outputs = {}
+    filter_complex = []
 
-    transcoding_processes.each do |transcoding_process|
+    # Build temp files and filter complex
+    transcoding_processes.each_with_index do |transcoding_process, index|
       temp_file = Tempfile.new([ "#{transcoding_process.id}_output", ".mp4" ])
       temp_file.close
       temp_outputs[transcoding_process] = temp_file
 
+      # Add filter for this output
+      filter_complex << "[0:v]scale_cuda=min(#{transcoding_process.transcoding_profile.width}\\,iw):min(#{transcoding_process.transcoding_profile.height}\\,ih)[v#{index}]"
+    end
+
+    # Add the filter_complex option
+    command += [ "-filter_complex", filter_complex.join(";") ]
+
+    # Add each output with its mapped stream
+    transcoding_processes.each_with_index do |transcoding_process, index|
+      temp_file = temp_outputs[transcoding_process]
       command += [
-        "-vf", "scale_cuda=min(#{transcoding_process.transcoding_profile.width},iw):min(#{transcoding_process.transcoding_profile.height},ih)",
+        "-map", "[v#{index}]",
+        "-map", "0:a?",
         "-c:v", transcoding_process.transcoding_profile.codec,
         "-b:v", transcoding_process.transcoding_profile.bitrate_string,
         "-preset", "p4",
