@@ -6,8 +6,17 @@ class Video < ApplicationRecord
   validate :validate_external_video_link
 
   def create_transcoding_process!(transcoding_profiles)
+    max_quality = Videos::Quality::TranscodingProcess.determine_max_quality(external_video_link)
+    max_quality_value = Videos::Quality::TranscodingProfile.labels[max_quality]
+
     transcoding_profiles.each do |transcoding_profile|
-      transcoding_processes.create!(transcoding_profile: transcoding_profile)
+      target_quality_value = Videos::Quality::TranscodingProfile.labels[transcoding_profile.label]
+
+      if max_quality_value < target_quality_value
+        transcoding_processes.create!(transcoding_profile: transcoding_profile, status: :unavailable)
+      else
+        transcoding_processes.create!(transcoding_profile: transcoding_profile)
+      end
     end
   end
 
