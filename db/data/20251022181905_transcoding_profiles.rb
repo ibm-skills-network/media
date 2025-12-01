@@ -27,7 +27,7 @@ class TranscodingProfiles < ActiveRecord::Migration[8.0]
     }
 
     profiles.each do |label, attributes|
-      Videos::Quality::TranscodingProfile.create!(
+      Videos::TranscodingProfile.create!(
         label: label,
         codec: attributes[:codec],
         width: attributes[:width],

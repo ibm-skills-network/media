@@ -76,7 +76,7 @@ module Ffmpeg
       #
       # @param input_path [String] Path to the input video file
       # @param output_path [String] Path where the output video file will be saved
-      # @param transcoding_profile [Videos::Quality::TranscodingProfile] The transcoding profile to use
+      # @param transcoding_profile [Videos::TranscodingProfile] The transcoding profile to use
       # @return [Hash] A hash containing :success (Boolean) and either :output_file (String) or :error (String)
       def encode_video(input_path, output_path, transcoding_profile)
         command = [

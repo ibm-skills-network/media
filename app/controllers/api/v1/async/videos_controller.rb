@@ -7,7 +7,7 @@ module Api
 
           transcoding_profile_labels = video_params[:transcoding_profile_labels] || []
           transcoding_profiles = transcoding_profile_labels.map do |label|
-            ::Videos::Quality::TranscodingProfile.find_by!(label: label)
+            ::Videos::TranscodingProfile.find_by!(label: label)
           end
 
           @video.create_transcoding_process!(transcoding_profiles)

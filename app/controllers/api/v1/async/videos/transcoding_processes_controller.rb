@@ -16,7 +16,7 @@ module Api
           private
 
           def set_transcoding_process
-            @transcoding_process = ::Videos::Quality::TranscodingProcess.includes(:transcoding_profile).find(params[:id])
+            @transcoding_process = ::Videos::TranscodingProcess.includes(:transcoding_profile).find(params[:id])
           end
         end
       end
