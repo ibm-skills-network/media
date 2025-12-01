@@ -22,6 +22,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     libnuma1 \
     libnuma-dev \
+    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install NVIDIA codec headers
@@ -41,6 +42,7 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
         --enable-nvenc \
         --enable-nvdec \
         --enable-libnpp \
+        --enable-openssl \
         --extra-cflags=-I/usr/local/cuda/include \
         --extra-ldflags=-L/usr/local/cuda/lib64 \
         --disable-static \
@@ -59,6 +61,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libnuma1 \
     ca-certificates \
+    libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy FFmpeg binaries and libraries from builder
