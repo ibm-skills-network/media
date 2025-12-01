@@ -35,6 +35,26 @@ module Ffmpeg
         JSON.parse(stdout)
       end
 
+      # Extracts video metadata from a URL using ffprobe
+      #
+      # @param url [String] URL to the video file
+      # @return [Hash] Parsed JSON metadata from ffprobe
+      def video_metadata_from_url(url)
+        command = [
+          "ffprobe",
+          "-v", "quiet",
+          "-print_format", "json",
+          "-show_format",
+          "-show_streams",
+          url
+        ]
+
+        stdout, _stderr, status = Open3.capture3(*command)
+        raise "Failed to extract video metadata from URL" unless status.success?
+
+        JSON.parse(stdout)
+      end
+
       # Checks if CUDA hardware acceleration is supported by FFmpeg
       #
       # @return [Hash] A hash containing :success (Boolean) and :cuda_supported (Boolean) if successful, or :error (String) if an error occurred

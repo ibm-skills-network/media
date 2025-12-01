@@ -11,12 +11,10 @@ module Videos
 
       enum :status, { pending: 0, processing: 1, success: 2, failed: 3, unavailable: 4 }, default: :pending
 
-      before_create :validate_external_video_link
+      before_create :validate_video_quality
 
-      VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
-
-      def self.determine_max_quality(file_path)
-        metadata = Ffmpeg::Video.video_metadata(file_path)
+      def self.determine_max_quality(url)
+        metadata = Ffmpeg::Video.video_metadata_from_url(url)
 
         video_stream = metadata["streams"].find { |stream| stream["width"].present? && stream["height"].present? }
 
@@ -34,11 +32,15 @@ module Videos
 
       private
 
-      def validate_external_video_link
+      def validate_video_quality
         return unless video&.external_video_link.present?
 
-        unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(video.external_video_link))
-          errors.add(:base, "video must be a valid video file (mp4, webm, or mov)")
+        max_quality = self.class.determine_max_quality(video.external_video_link)
+        max_quality_value = Videos::Quality::TranscodingProfile.labels[max_quality]
+        target_quality_value = Videos::Quality::TranscodingProfile.labels[transcoding_profile.label]
+
+        if max_quality_value < target_quality_value
+          self.status = :unavailable
         end
       end
     end
