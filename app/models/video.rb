@@ -12,7 +12,10 @@ class Video < ApplicationRecord
   def transcode_video!
     return if transcoding_processes.empty?
 
-    transcoding_processes.each { |tp| tp.processing! unless tp.success? }
+    processes_to_transcode = transcoding_processes.reject(&:success?)
+    return if processes_to_transcode.empty?
+
+    processes_to_transcode.each(&:processing!)
 
     command = [
       "ffmpeg",
@@ -25,21 +28,29 @@ class Video < ApplicationRecord
     temp_outputs = {}
     filter_complex = []
 
-    # Build temp files and filter complex
-    transcoding_processes.each_with_index do |transcoding_process, index|
+    # Split the input stream for multiple outputs
+    split_count = processes_to_transcode.length
+    if split_count > 1
+      split_outputs = (0...split_count).map { |i| "[in#{i}]" }.join
+      filter_complex << "[0:v]split_cuda=#{split_count}#{split_outputs}"
+    end
+
+    # Build temp files and scaling filters
+    processes_to_transcode.each_with_index do |transcoding_process, index|
       temp_file = Tempfile.new([ "#{transcoding_process.id}_output", ".mp4" ])
       temp_file.close
       temp_outputs[transcoding_process] = temp_file
 
-      # Add filter for this output
-      filter_complex << "[0:v]scale_cuda=min(#{transcoding_process.transcoding_profile.width}\\,iw):min(#{transcoding_process.transcoding_profile.height}\\,ih)[v#{index}]"
+      # Use the split stream input for multiple outputs, or direct input for single output
+      input_stream = split_count > 1 ? "[in#{index}]" : "[0:v]"
+      filter_complex << "#{input_stream}scale_cuda=min(#{transcoding_process.transcoding_profile.width}\\,iw):min(#{transcoding_process.transcoding_profile.height}\\,ih)[v#{index}]"
     end
 
     # Add the filter_complex option
     command += [ "-filter_complex", filter_complex.join(";") ]
 
     # Add each output with its mapped stream
-    transcoding_processes.each_with_index do |transcoding_process, index|
+    processes_to_transcode.each_with_index do |transcoding_process, index|
       temp_file = temp_outputs[transcoding_process]
       command += [
         "-map", "[v#{index}]",
@@ -68,7 +79,7 @@ class Video < ApplicationRecord
         end
       end
     else
-      transcoding_processes.each { |tp| tp.failed! unless tp.success? || tp.unavailable? }
+      processes_to_transcode.each { |tp| tp.failed! unless tp.success? || tp.unavailable? }
       raise "FFmpeg encoding failed: #{stderr}"
     end
 
