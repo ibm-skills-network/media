@@ -28,22 +28,15 @@ class Video < ApplicationRecord
     temp_outputs = {}
     filter_complex = []
 
-    # Split the input stream for multiple outputs
-    split_count = processes_to_transcode.length
-    if split_count > 1
-      split_outputs = (0...split_count).map { |i| "[in#{i}]" }.join
-      filter_complex << "[0:v]split_cuda=outputs=#{split_count}#{split_outputs}"
-    end
-
     # Build temp files and scaling filters
+    # Note: We scale directly from [0:v] for each output to keep everything on GPU
     processes_to_transcode.each_with_index do |transcoding_process, index|
       temp_file = Tempfile.new([ "#{transcoding_process.id}_output", ".mp4" ])
       temp_file.close
       temp_outputs[transcoding_process] = temp_file
 
-      # Use the split stream input for multiple outputs, or direct input for single output
-      input_stream = split_count > 1 ? "[in#{index}]" : "[0:v]"
-      filter_complex << "#{input_stream}scale_cuda=min(#{transcoding_process.transcoding_profile.width}\\,iw):min(#{transcoding_process.transcoding_profile.height}\\,ih)[v#{index}]"
+      # Scale directly from input - FFmpeg will handle multiple reads efficiently
+      filter_complex << "[0:v]scale_cuda=min(#{transcoding_process.transcoding_profile.width}\\,iw):min(#{transcoding_process.transcoding_profile.height}\\,ih)[v#{index}]"
     end
 
     # Add the filter_complex option

@@ -43,7 +43,6 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
         --enable-nvdec \
         --enable-libnpp \
         --enable-openssl \
-        --enable-filter=split_cuda \
         --extra-cflags=-I/usr/local/cuda/include \
         --extra-ldflags=-L/usr/local/cuda/lib64 \
         --disable-static \
