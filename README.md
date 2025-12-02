@@ -99,33 +99,11 @@
 
 ---
 
-## Technology Stack
-
-| Component | Technology |
-|-----------|-----------|
-| **Framework** | Ruby on Rails 8.1.0 (API-only) |
-| **Language** | Ruby 3.4.7 |
-| **Database** | PostgreSQL 16 with pgvector |
-| **Cache/Queue** | Redis 7 |
-| **Job Processing** | Sidekiq 8.x with sidekiq-cron |
-| **Web Server** | Puma |
-| **Video Processing** | FFmpeg with CUDA 12.0.1 |
-| **GPU Acceleration** | NVIDIA NVENC, NVDEC, CUVID, LibNPP |
-| **Storage** | Active Storage (S3/IBM COS) |
-| **Authentication** | JWT |
-| **Testing** | RSpec 6.0+, FactoryBot |
-| **Monitoring** | Instana APM |
-| **CI/CD** | GitHub Actions |
-
----
-
 ## API Documentation
 
 Refer to the swagger documentation, at /swagger
 
 ## Setup Guide
-
-### Development Setup
 
 #### 1. Configure S3 Storage
 
@@ -139,11 +117,9 @@ export SETTINGS_IBMCOS_REGION=us-south
 export SETTINGS_IBMCOS_BUCKET=your_bucket
 ```
 
-### Docker Setup
-
 #### Build Images
 
-**Note:** The image `icr.io/skills-network/media/ffmpeg:0.2.3` cannot be used locally. You must compile the FFmpeg image yourself from `utils/ffmpeg/Dockerfile` and replace the image tag in your Docker configuration.
+**Note:** The image `icr.io/skills-network/media/ffmpeg:tag` cannot be used locally. You must compile the FFmpeg image yourself from `utils/ffmpeg/Dockerfile` and replace the image tag in your Docker configuration.
 
 **Build FFmpeg with CUDA:**
 ```bash
@@ -186,10 +162,6 @@ spec/
 ├── factories/       # Test data factories
 └── support/         # Shared contexts and helpers
 ```
-
-### Test Database
-
-Tests use a separate database (`media_test`) configured in `config/database.yml`.
 
 ### FFmpeg Integration
 
@@ -244,7 +216,7 @@ Settings.ibmcos.bucket
 ## GPU Requirements
 
 ### Hardware
-- NVIDIA GPU with NVENC/NVDEC support (e.g., GeForce RTX 20/30/40 series, Tesla, Quadro)
+- NVIDIA GPU with NVENC/NVDEC AV1 support, a list of supported GPUs can be found [here](https://en.wikipedia.org/wiki/NVDEC)
 - Minimum 4GB VRAM recommended
 - CUDA Compute Capability 5.0+
 
@@ -299,24 +271,7 @@ ffmpeg -encoders | grep nvenc  # Should show av1_nvenc
 - [ ] Enable Instana monitoring
 - [ ] Configure NVIDIA Docker runtime
 - [ ] Set up log aggregation
-- [ ] Configure backup strategy for PostgreSQL
-- [ ] Set up SSL/TLS termination
-- [ ] Configure rate limiting
 - [ ] Set appropriate Sidekiq concurrency
-
-### Scaling Considerations
-
-**Horizontal Scaling:**
-- Run multiple Puma processes
-- Add more Sidekiq workers
-- Use dedicated GPU workers for encoding jobs
-
-**Vertical Scaling:**
-- Increase GPU memory for higher resolution videos
-- Add more CPU cores for Sidekiq concurrency
-- Increase database connection pool size
-
----
 
 ## Troubleshooting
 
