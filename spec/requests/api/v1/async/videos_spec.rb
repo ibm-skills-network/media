@@ -9,7 +9,7 @@ RSpec.describe Api::V1::Async::VideosController, type: :controller do
     let(:video_params) do
       {
         external_video_link: "https://example.com/video.mp4",
-        transcoding_profile_labels: [transcoding_profile.label]
+        transcoding_profile_labels: [ transcoding_profile.label ]
       }
     end
 
