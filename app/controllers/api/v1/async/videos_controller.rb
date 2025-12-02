@@ -5,12 +5,8 @@ module Api
         def create
           @video = Video.create!(external_video_link: video_params[:external_video_link])
 
-          transcoding_profile_labels = video_params[:transcoding_profile_labels] || []
-          transcoding_profiles = transcoding_profile_labels.map do |label|
-            ::Videos::TranscodingProfile.find_by!(label: label)
-          end
-
-          @video.create_transcoding_process!(transcoding_profiles)
+          transcoding_profile_labels = video_params[:transcoding_profile_labels]
+          ::Videos::TranscodingProcess.create_transcoding_processes!(@video, transcoding_profile_labels)
           ::Videos::TranscodeVideoJob.perform_later(@video.id)
           render json: {
             transcoding_processes: @video.transcoding_processes.map do |transcoding_process|

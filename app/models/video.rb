@@ -5,21 +5,6 @@ class Video < ApplicationRecord
 
   validate :validate_external_video_link
 
-  def create_transcoding_process!(transcoding_profiles)
-    max_quality = Videos::TranscodingProcess.determine_max_quality(external_video_link)
-    max_quality_value = Videos::TranscodingProfile.labels[max_quality]
-
-    transcoding_profiles.each do |transcoding_profile|
-      target_quality_value = Videos::TranscodingProfile.labels[transcoding_profile.label]
-
-      if max_quality_value < target_quality_value
-        transcoding_processes.create!(transcoding_profile: transcoding_profile, status: :unavailable)
-      else
-        transcoding_processes.create!(transcoding_profile: transcoding_profile)
-      end
-    end
-  end
-
   def transcode_video!
     return if transcoding_processes.empty?
 
@@ -89,6 +74,23 @@ class Video < ApplicationRecord
 
   ensure
     temp_outputs&.each_value(&:unlink)
+  end
+
+  def max_quality_label
+    metadata = Ffmpeg::Video.video_metadata_from_url(external_video_link)
+
+    video_stream = metadata["streams"].find { |stream| stream["width"].present? && stream["height"].present? }
+
+    width = video_stream["width"]
+    height = video_stream["height"]
+
+    if height >= 1080 && width >= 1920
+      "1080p"
+    elsif height >= 720 && width >= 1280
+      "720p"
+    else
+      "480p"
+    end
   end
 
   private
