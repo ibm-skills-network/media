@@ -1,24 +1,359 @@
-# README
+# Media - GPU-Accelerated Video Transcoding Service
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+**Media** is a high-performance video transcoding service built with Rails that leverages NVIDIA CUDA hardware acceleration to efficiently transcode videos to multiple quality levels. The service processes videos asynchronously using background jobs and stores outputs to cloud storage.
 
-Things you may want to cover:
+---
 
-* Ruby version
+## Quick Links
 
-* System dependencies
+- [Getting Started](#getting-started)
+- [Key Features](#key-features)
+- [Technology Stack](#technology-stack)
+- [API Documentation](#api-documentation)
+- [Setup Guide](#setup-guide)
+- [Architecture Overview](#architecture-overview)
 
-* Configuration
+---
 
-* Database creation
+## Getting Started
 
-* Database initialization
+### Prerequisites
 
-* How to run the test suite
+**Required:**
+- Ruby 3.4.7
+- PostgreSQL 14+
+- Redis 7+
+- FFmpeg with CUDA support
+- NVIDIA GPU with NVENC/NVDEC support
+- NVIDIA CUDA Toolkit 12.0.1
 
-* Services (job queues, cache servers, search engines, etc.)
+**Optional:**
+- Docker & Docker Compose
+- asdf version manager
 
-* Deployment instructions
+### Quick Setup
 
-* ...
+1. **Clone the repository**
+
+   ```bash
+   git clone <repository-url>
+   cd media
+   ```
+
+2. **Install dependencies**
+
+   ```bash
+   # Using asdf for version management
+   asdf install
+
+   # Install Ruby gems
+   bundle install
+   ```
+
+3. **Start services and setup database**
+
+   ```bash
+   # Start PostgreSQL and Redis
+   docker-compose up -d
+
+   # Create database, load schema, and seed transcoding profiles
+   bin/rails db:setup
+   ```
+
+4. **Start the application**
+
+   ```bash
+   # Start web server and background workers
+   bin/dev
+   ```
+
+5. **Access the application**
+   - API: http://localhost:3009
+   - Sidekiq UI: http://localhost:3009/sidekiq
+
+---
+
+## Key Features
+
+### Core Capabilities
+- **GPU-Accelerated Transcoding** - NVIDIA CUDA hardware encoding/decoding with NVENC/NVDEC
+- **Multiple Quality Profiles** - Automatic transcoding to 480p, 720p, and 1080p
+- **AV1 Encoding** - Modern AV1 codec with hardware acceleration (av1_nvenc)
+- **Asynchronous Processing** - Background job processing with Sidekiq
+- **Quality Validation** - Automatic resolution detection and upscaling prevention
+- **Cloud Storage** - S3 and IBM Cloud Object Storage integration
+
+### Supported Formats
+
+**Input Video Formats:**
+- MP4 (video/mp4)
+- WebM (video/webm)
+- QuickTime/MOV (video/quicktime)
+
+**Output Specifications:**
+| Quality | Resolution | Codec | Video Bitrate | Audio |
+|---------|-----------|-------|---------------|-------|
+| 480p | 854×480 | av1_nvenc | 1000k | AAC 128k |
+| 720p | 1280×720 | av1_nvenc | 1800k | AAC 128k |
+| 1080p | 1920×1080 | av1_nvenc | 2900k | AAC 128k |
+
+---
+
+## API Documentation
+
+Refer to the swagger documentation, at /swagger
+
+## Setup Guide
+
+#### 1. Configure S3 Storage
+
+For production, configure S3 or IBM Cloud Object Storage:
+
+```bash
+export SETTINGS_IBMCOS_ACCESS_KEY_ID=your_key
+export SETTINGS_IBMCOS_SECRET_ACCESS_KEY=your_secret
+export SETTINGS_IBMCOS_ENDPOINT=https://s3.region.cloud-object-storage.appdomain.cloud
+export SETTINGS_IBMCOS_REGION=us-south
+export SETTINGS_IBMCOS_BUCKET=your_bucket
+```
+
+#### Build Images
+
+**Note:** The image `icr.io/skills-network/media/ffmpeg:tag` cannot be used locally. You must compile the FFmpeg image yourself from `utils/ffmpeg/Dockerfile` and replace the image tag in your Docker configuration.
+
+**Build FFmpeg with CUDA:**
+```bash
+cd utils/ffmpeg
+docker build -t ffmpeg-cuda:latest .
+```
+
+**Build Application:**
+```bash
+# From project root
+docker build -t media:latest .
+```
+
+**Note:** GPU access requires NVIDIA Docker runtime (`--gpus all` flag).
+
+---
+
+## Testing
+
+### Running Tests
+
+```bash
+# All tests
+bundle exec rspec
+
+# Specific test file
+bundle exec rspec spec/models/videos/quality_spec.rb
+
+# With coverage report
+bundle exec rspec --format documentation
+```
+
+### Test Structure
+
+```
+spec/
+├── models/          # Model tests
+├── jobs/            # Background job tests
+├── requests/        # API endpoint tests
+├── factories/       # Test data factories
+└── support/         # Shared contexts and helpers
+```
+
+### FFmpeg Integration
+
+The service uses a custom FFmpeg wrapper (`lib/ffmpeg/video.rb`) that:
+- Executes FFmpeg commands with CUDA flags
+- Extracts video metadata (resolution, codec, bitrate)
+- Handles tempfile management
+- Provides error handling and logging
+
+**Key FFmpeg Options:**
+```bash
+ffmpeg -hwaccel cuda -hwaccel_output_format cuda \
+  -i input.mp4 \
+  -c:v av1_nvenc -preset p4 -b:v 1800k \
+  -vf scale_cuda=1280:720 \
+  -c:a aac -b:a 128k -ac 2 \
+  output.mp4
+```
+
+### Storage Architecture
+
+**Development:** Local disk storage
+**Production:** S3-compatible storage (AWS S3 or IBM Cloud Object Storage)
+
+Files managed by Active Storage with automatic attachment handling.
+
+---
+
+## Configuration
+
+### Settings Management
+
+The application uses the `config` gem for settings:
+
+**Load Order:**
+1. `config/settings.yml` - Base settings
+2. `config/settings/#{Rails.env}.yml` - Environment-specific
+3. `config/settings/#{Rails.env}.local.yml` - Local overrides (gitignored)
+4. Environment variables with `SETTINGS_` prefix
+
+### Key Settings
+
+Access settings via `Settings.key`:
+```ruby
+Settings.jwt_secret
+Settings.sidekiq.credentials.username
+Settings.ibmcos.bucket
+```
+
+---
+
+## GPU Requirements
+
+### Hardware
+- NVIDIA GPU with NVENC/NVDEC AV1 support, a list of supported GPUs can be found [here](https://en.wikipedia.org/wiki/NVDEC)
+- Minimum 4GB VRAM recommended
+- CUDA Compute Capability 5.0+
+
+### Software
+- NVIDIA Driver 525.60.13+
+- CUDA Toolkit 12.0.1
+- NVIDIA Docker runtime (for containerized deployment)
+
+### Verify GPU Access
+
+```bash
+# Check NVIDIA driver
+nvidia-smi
+
+# Check CUDA
+nvcc --version
+
+# Test FFmpeg CUDA support
+ffmpeg -hwaccels  # Should list 'cuda'
+ffmpeg -encoders | grep nvenc  # Should show av1_nvenc
+```
+
+---
+
+## Monitoring & Observability
+
+### Sidekiq Web UI
+- URL: `/sidekiq`
+- Monitor job queues, retries, and dead jobs
+- View job processing stats
+
+### Health Check
+- URL: `/up`
+- Returns 200 OK if application is healthy
+
+### Logging
+- Rails logs: `log/development.log`
+- Sidekiq logs: STDOUT (captured by process manager)
+
+### Production Monitoring
+- Instana APM integration enabled in production
+- Tracks performance, errors, and traces
+
+---
+
+### Production Checklist
+
+- [ ] Configure production database with connection pooling
+- [ ] Set up Redis with persistence
+- [ ] Configure S3/IBM COS credentials
+- [ ] Set `SECRET_KEY_BASE` and `SETTINGS_JWT_SECRET`
+- [ ] Enable Instana monitoring
+- [ ] Configure NVIDIA Docker runtime
+- [ ] Set up log aggregation
+- [ ] Set appropriate Sidekiq concurrency
+
+## Troubleshooting
+
+### Common Issues
+
+**GPU not detected:**
+```bash
+# Verify NVIDIA driver
+nvidia-smi
+
+# Check Docker GPU access
+docker run --rm --gpus all nvidia/cuda:12.0.1-base-ubuntu22.04 nvidia-smi
+```
+
+**FFmpeg encoding fails:**
+```bash
+# Check CUDA support
+ffmpeg -hwaccels
+ffmpeg -encoders | grep nvenc
+
+# Test encoding
+ffmpeg -hwaccel cuda -i input.mp4 -c:v av1_nvenc output.mp4
+```
+
+**Database connection issues:**
+```bash
+# Check PostgreSQL
+psql postgresql://postgres:password@localhost:5437/media_development
+
+# Verify DATABASE_URL
+echo $DATABASE_URL
+```
+
+**Sidekiq jobs not processing:**
+```bash
+# Check Redis
+redis-cli -h localhost -p 6381 ping
+
+# Verify Sidekiq is running
+ps aux | grep sidekiq
+
+# Check Sidekiq logs
+tail -f log/sidekiq.log
+```
+
+---
+
+## Development
+
+### Code Style
+- Follow Rubocop rules (`.rubocop.yml`)
+- Run linter: `bundle exec rubocop`
+- Auto-fix: `bundle exec rubocop -a`
+
+### Database Migrations
+```bash
+# Create migration
+bin/rails generate migration AddFieldToTable
+
+# Run migrations
+bin/rails db:migrate
+
+# Rollback
+bin/rails db:rollback
+```
+
+### Adding Transcoding Profiles
+Profiles are seeded via data migrations in `db/data/`. To add a new profile:
+1. Create profile record in data migration
+2. Define encoding parameters (codec, bitrate, resolution)
+3. Run: `bin/rails db:data:migrate`
+
+---
+
+## License
+
+Apache License 2.0
+
+---
+
+## Acknowledgments
+
+Built with Ruby on Rails, FFmpeg, NVIDIA CUDA, PostgreSQL, Redis, and Sidekiq.
+
+Special thanks to the open-source community for the amazing tools and libraries.
