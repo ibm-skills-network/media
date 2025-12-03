@@ -29,7 +29,8 @@ jobs:
         id: changed
         run: |
           # Get the latest stable release tag (exclude prereleases, must follow semver)
-          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^${CURRENT_TAG}$" | head -n1)
           if [ -z "$LATEST_TAG" ]; then
             echo "No previous release found, will build"
             echo "changed=true" >> $GITHUB_OUTPUT
