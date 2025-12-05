@@ -26,7 +26,7 @@ module Api
           private
 
           def video_params
-            params.permit(chunks: [:image_url, :audio_url])
+            params.permit(chunks: [ :image_url, :audio_url ])
           end
         end
       end
