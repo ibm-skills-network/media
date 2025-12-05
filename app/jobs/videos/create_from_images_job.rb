@@ -22,15 +22,17 @@ module Videos
           temp_outputs[i] = temp_file
 
           command = [
-            "ffmpeg", "-y",
+            "ffmpeg",
+            "-loop", "1",
+            "-framerate", "30",
+            "-i", chunk["image_url"],
             "-i", chunk["audio_url"],
-            "-loop", "1", "-i", chunk["image_url"],
-            "-filter_complex", "[1:v]fps=30,format=yuv420p[v]",
-            "-map", "[v]",
-            "-map", "0:a",
             "-c:v", "av1_nvenc",
+            "-pix_fmt", "yuv420p",
+            "-r", "30",
             "-c:a", "aac",
             "-shortest",
+            "-y",
             temp_file.path
           ]
 
@@ -47,8 +49,8 @@ module Videos
         concat_file.close
 
         concat_command = [
-          "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", concat_file.path,
-          "-c", "copy", output_file.path
+          "ffmpeg", "-f", "concat", "-safe", "0", "-i", concat_file.path,
+          "-c", "copy", "-fflags", "+genpts", "-y", output_file.path
         ]
 
         _stdout, stderr, status = Open3.capture3(*concat_command)
