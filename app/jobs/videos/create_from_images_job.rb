@@ -79,8 +79,6 @@ module Videos
           video_file_attachment.attach(io: file, filename: "video_#{video.id}.mp4")
         end
 
-        video.update!(external_video_link: Rails.application.routes.url_helpers.rails_blob_url(video.video_file, host: Settings.host))
-
       ensure
         temp_files.each(&:unlink)
         concat_file.unlink
