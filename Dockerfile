@@ -30,13 +30,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && make install \
     && cd .. \
     && rm -rf ruby-3.4.7 ruby-3.4.7.tar.gz \
-    && gem install bundler -v 2.7.1 --no-document \
+    && gem install bundler \
     && rm -rf /var/lib/apt/lists/*
 
 COPY Gemfile Gemfile.lock ./
 RUN bundle config set --local deployment 'true' \
     && bundle config set --local without 'development test' \
-    && bundle install --jobs="$(nproc --all)" --frozen --retry 3 -j4 \
+    && bundle config set frozen true \
+    && bundle install --jobs="$(nproc --all)" --retry 3 -j4 \
     && find /usr/local/lib/ruby/gems -name ".git" -type d -exec rm -rf {} + 2>/dev/null || true
 
 COPY bin ./bin
