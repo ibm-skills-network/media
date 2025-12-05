@@ -29,8 +29,13 @@ module Videos
 
             image_file.binmode
             audio_file.binmode
-            image_file.write(URI.open(chunk["image_url"]).read)
-            audio_file.write(URI.open(chunk["audio_url"]).read)
+
+            # Download using Faraday
+            image_response = Faraday.get(chunk["image_url"])
+            audio_response = Faraday.get(chunk["audio_url"])
+
+            image_file.write(image_response.body)
+            audio_file.write(audio_response.body)
             image_file.close
             audio_file.close
 
