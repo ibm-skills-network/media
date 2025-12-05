@@ -10,59 +10,48 @@ module Videos
 
     def perform(video_id, chunks)
       video = Video.find(video_id)
-      batch_size = 20
-      batch_files = []
+      temp_files = []
+      chunk_files = []
 
       begin
-        # Process chunks in batches
-        chunks.each_slice(batch_size).with_index do |batch, batch_index|
-          batch_output = Tempfile.new([ "batch_#{batch_index}", ".mp4" ])
-          batch_files << batch_output
+        # Download all files to temp
+        chunks.each_with_index do |chunk, i|
+          image_file = Tempfile.new([ "image_#{i}", ".png" ])
+          audio_file = Tempfile.new([ "audio_#{i}", ".mp3" ])
+          chunk_output = Tempfile.new([ "chunk_#{i}", ".mp4" ])
 
-          command = [ "ffmpeg", "-y" ]
+          temp_files << image_file << audio_file << chunk_output
 
-          # Add all inputs
-          batch.each do |chunk|
-            command += [ "-loop", "1", "-i", chunk["image_url"] ]
-          end
-          batch.each do |chunk|
-            command += [ "-i", chunk["audio_url"] ]
-          end
+          image_file.binmode
+          audio_file.binmode
+          image_file.write(URI.open(chunk["image_url"]).read)
+          audio_file.write(URI.open(chunk["audio_url"]).read)
+          image_file.close
+          audio_file.close
 
-          # Build filter_complex - pair each video with audio to match durations
-          filter_parts = []
-          concat_inputs = []
-
-          batch.length.times do |i|
-            video_input = i
-            audio_input = batch.length + i
-
-            # Use concat with n=1 to pair video with audio (this handles shortest automatically)
-            filter_parts << "[#{video_input}:v]fps=30,format=yuv420p[v#{i}]"
-            filter_parts << "[v#{i}][#{audio_input}:a]concat=n=1:v=1:a=1[v#{i}out][a#{i}out]"
-            concat_inputs << "[v#{i}out][a#{i}out]"
-          end
-
-          # Concat all paired segments
-          filter_parts << "#{concat_inputs.join('')}concat=n=#{batch.length}:v=1:a=1[vout][aout]"
-
-          command += [
-            "-filter_complex", filter_parts.join(";"),
-            "-map", "[vout]", "-map", "[aout]",
+          # Process each chunk individually
+          command = [
+            "ffmpeg", "-y",
+            "-loop", "1", "-i", image_file.path,
+            "-i", audio_file.path,
+            "-vf", "fps=30,format=yuv420p",
             "-c:v", "av1_nvenc",
             "-c:a", "aac",
-            batch_output.path
+            "-shortest",
+            chunk_output.path
           ]
 
           _stdout, stderr, status = Open3.capture3(*command)
-          raise "FFmpeg batch processing failed: #{stderr}" unless status.success?
+          raise "FFmpeg chunk processing failed: #{stderr}" unless status.success?
+
+          chunk_files << chunk_output.path
         end
 
-        # Concatenate all batches
+        # Concatenate all chunks
         output_file = Tempfile.new([ "output", ".mp4" ])
         concat_file = Tempfile.new([ "concat", ".txt" ])
 
-        batch_files.each { |f| concat_file.write("file '#{f.path}'\n") }
+        chunk_files.each { |f| concat_file.write("file '#{f}'\n") }
         concat_file.close
 
         concat_command = [
@@ -79,7 +68,7 @@ module Videos
         end
 
       ensure
-        batch_files.each(&:unlink)
+        temp_files.each(&:unlink)
         output_file&.unlink
         concat_file&.unlink
       end
