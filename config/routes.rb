@@ -24,6 +24,7 @@ Rails.application.routes.draw do
         resources :videos, only: [ :create ]
         namespace :videos do
           resources :transcoding_processes, only: [ :show ]
+          resources :images, only: [ :create ]
         end
       end
     end
