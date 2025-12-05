@@ -10,51 +10,40 @@ module Videos
 
     def perform(video_id, chunks)
       video = Video.find(video_id)
-      temp_files = []
-      chunk_files = []
-      output_file = nil
+      temp_outputs = {}
       concat_file = nil
+      output_file = nil
 
       begin
-        # Download all files to temp
+        # Process each chunk individually
         chunks.each_with_index do |chunk, i|
-          image_file = Tempfile.new([ "image_#{i}", ".png" ])
-          audio_file = Tempfile.new([ "audio_#{i}", ".mp3" ])
-          chunk_output = Tempfile.new([ "chunk_#{i}", ".mp4" ])
+          temp_file = Tempfile.new([ "chunk_#{i}", ".mp4" ])
+          temp_file.close
+          temp_outputs[i] = temp_file
 
-          temp_files << image_file << audio_file << chunk_output
-
-          image_file.binmode
-          audio_file.binmode
-          image_file.write(URI.parse(chunk["image_url"]).open.read)
-          audio_file.write(URI.parse(chunk["audio_url"]).open.read)
-          image_file.close
-          audio_file.close
-          chunk_output.close
-
-          # Process each chunk individually
           command = [
             "ffmpeg", "-y",
-            "-loop", "1", "-i", image_file.path,
-            "-i", audio_file.path,
-            "-vf", "fps=30,format=yuv420p",
+            "-i", chunk["audio_url"],
+            "-loop", "1", "-i", chunk["image_url"],
+            "-filter_complex", "[1:v]fps=30,format=yuv420p[v]",
+            "-map", "[v]",
+            "-map", "0:a",
             "-c:v", "av1_nvenc",
             "-c:a", "aac",
             "-shortest",
-            chunk_output.path
+            temp_file.path
           ]
 
           _stdout, stderr, status = Open3.capture3(*command)
           raise "FFmpeg chunk processing failed: #{stderr}" unless status.success?
-
-          chunk_files << chunk_output.path
         end
 
         # Concatenate all chunks
         output_file = Tempfile.new([ "output", ".mp4" ])
+        output_file.close
         concat_file = Tempfile.new([ "concat", ".txt" ])
 
-        chunk_files.each { |f| concat_file.write("file '#{f}'\n") }
+        temp_outputs.each_value { |f| concat_file.write("file '#{f.path}'\n") }
         concat_file.close
 
         concat_command = [
@@ -65,15 +54,14 @@ module Videos
         _stdout, stderr, status = Open3.capture3(*concat_command)
         raise "FFmpeg concatenation failed: #{stderr}" unless status.success?
 
-        video_file_attachment = video.video_file
         File.open(output_file.path, "rb") do |file|
-          video_file_attachment.attach(io: file, filename: "video_#{video.id}.mp4")
+          video.video_file.attach(io: file, filename: "video_#{video.id}.mp4")
         end
 
       ensure
-        temp_files.each(&:unlink)
-        output_file&.unlink
+        temp_outputs&.each_value(&:unlink)
         concat_file&.unlink
+        output_file&.unlink
       end
     end
   end
