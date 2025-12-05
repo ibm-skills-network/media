@@ -17,6 +17,8 @@ module Videos
       begin
         # Process each chunk individually
         chunks.each_with_index do |chunk, i|
+          Rails.logger.info("Processing chunk #{i + 1}/#{chunks.length}")
+
           temp_file = Tempfile.new([ "chunk_#{i}", ".mp4" ])
           temp_file.close
           temp_outputs[i] = temp_file
@@ -37,10 +39,18 @@ module Videos
           ]
 
           _stdout, stderr, status = Open3.capture3(*command)
-          raise "FFmpeg chunk processing failed: #{stderr}" unless status.success?
+
+          if status.success?
+            Rails.logger.info("Chunk #{i + 1}/#{chunks.length} completed successfully")
+          else
+            Rails.logger.error("Chunk #{i + 1}/#{chunks.length} failed: #{stderr}")
+            raise "FFmpeg chunk processing failed: #{stderr}"
+          end
         end
 
         # Concatenate all chunks
+        Rails.logger.info("Concatenating #{chunks.length} chunks")
+
         output_file = Tempfile.new([ "output", ".mp4" ])
         output_file.close
         concat_file = Tempfile.new([ "concat", ".txt" ])
@@ -54,7 +64,13 @@ module Videos
         ]
 
         _stdout, stderr, status = Open3.capture3(*concat_command)
-        raise "FFmpeg concatenation failed: #{stderr}" unless status.success?
+
+        if status.success?
+          Rails.logger.info("Concatenation completed successfully")
+        else
+          Rails.logger.error("Concatenation failed: #{stderr}")
+          raise "FFmpeg concatenation failed: #{stderr}"
+        end
 
         File.open(output_file.path, "rb") do |file|
           video.video_file.attach(io: file, filename: "video_#{video.id}.mp4")
