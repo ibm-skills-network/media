@@ -26,8 +26,8 @@ module Videos
 
           image_file.binmode
           audio_file.binmode
-          image_file.write(URI.open(chunk["image_url"]).read)
-          audio_file.write(URI.open(chunk["audio_url"]).read)
+          image_file.write(URI.parse(chunk["image_url"]).open.read)
+          audio_file.write(URI.parse(chunk["audio_url"]).open.read)
           image_file.close
           audio_file.close
           chunk_output.close
