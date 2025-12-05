@@ -21,32 +21,36 @@ module Videos
 
           command = [ "ffmpeg", "-y" ]
 
-          # Add inputs with -shortest flag per input pair
+          # Add all inputs
           batch.each do |chunk|
-            command += [ "-loop", "1", "-i", chunk["image_url"], "-i", chunk["audio_url"], "-shortest" ]
+            command += [ "-loop", "1", "-i", chunk["image_url"] ]
+          end
+          batch.each do |chunk|
+            command += [ "-i", chunk["audio_url"] ]
           end
 
-          # Build filter_complex - pair each video/audio and concat them
+          # Build filter_complex - pair each video with audio to match durations
           filter_parts = []
           concat_inputs = []
 
           batch.length.times do |i|
-            video_input = i * 2
-            audio_input = i * 2 + 1
+            video_input = i
+            audio_input = batch.length + i
 
-            filter_parts << "[#{video_input}:v]fps=30[v#{i}]"
-            concat_inputs << "[v#{i}][#{audio_input}:a]"
+            # Use concat with n=1 to pair video with audio (this handles shortest automatically)
+            filter_parts << "[#{video_input}:v]fps=30,format=yuv420p[v#{i}]"
+            filter_parts << "[v#{i}][#{audio_input}:a]concat=n=1:v=1:a=1[v#{i}out][a#{i}out]"
+            concat_inputs << "[v#{i}out][a#{i}out]"
           end
 
-          # Concat all segments
+          # Concat all paired segments
           filter_parts << "#{concat_inputs.join('')}concat=n=#{batch.length}:v=1:a=1[vout][aout]"
 
           command += [
             "-filter_complex", filter_parts.join(";"),
             "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "av1_nvenc", "-preset", "p4", "-b:v", "5M",
-            "-c:a", "aac", "-b:a", "192k",
-            "-pix_fmt", "yuv420p",
+            "-c:v", "av1_nvenc",
+            "-c:a", "aac",
             batch_output.path
           ]
 
