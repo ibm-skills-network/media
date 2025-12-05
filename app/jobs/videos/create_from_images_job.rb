@@ -30,6 +30,7 @@ module Videos
           audio_file.write(URI.open(chunk["audio_url"]).read)
           image_file.close
           audio_file.close
+          chunk_output.close
 
           # Process each chunk individually
           command = [
