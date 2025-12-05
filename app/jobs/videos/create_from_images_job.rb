@@ -12,6 +12,8 @@ module Videos
       video = Video.find(video_id)
       temp_files = []
       chunk_files = []
+      output_file = nil
+      concat_file = nil
 
       begin
         # Download all files to temp
