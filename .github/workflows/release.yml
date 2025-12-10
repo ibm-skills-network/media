@@ -24,16 +24,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      - name: Check if Dockerfile changed
+          fetch-depth: 0
+      - name: Check if Dockerfile changed since last release
         id: changed
         run: |
-          if git diff HEAD^ HEAD --name-only | grep -q "utils/ffmpeg/Dockerfile"; then
+          # Get the latest stable release tag (exclude prereleases, must follow semver)
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^${CURRENT_TAG}$" | head -n1)
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous release found, will build"
             echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Dockerfile changed, will build"
           else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Dockerfile unchanged, skipping build"
+            echo "Comparing against latest release: $LATEST_TAG"
+            if git diff "$LATEST_TAG" HEAD --name-only | grep -q "utils/ffmpeg/Dockerfile"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "Dockerfile changed since $LATEST_TAG, will build"
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+              echo "Dockerfile unchanged since $LATEST_TAG, skipping build"
+            fi
           fi
 
   build-ffmpeg:

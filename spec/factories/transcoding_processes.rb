@@ -1,6 +1,6 @@
 FactoryBot.define do
-  factory :quality, class: "Videos::Quality" do
-    external_video_link { "https://example.com/video.mp4" }
+  factory :transcoding_process, class: "Videos::TranscodingProcess" do
+    association :video
     association :transcoding_profile, factory: :transcoding_profile
     status { :pending }
   end
