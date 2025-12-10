@@ -75,8 +75,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy Ruby and all dependencies from builder
 COPY --from=builder /usr/local/bin/ruby /usr/local/bin/ruby
 COPY --from=builder /usr/local/bin/gem /usr/local/bin/gem
-COPY --from=builder /usr/local/bin/bundle /usr/local/bin/bundle
-COPY --from=builder /usr/local/bin/bundler /usr/local/bin/bundler
+COPY --from=builder /usr/local/bin/bundle* /usr/local/bin/
 COPY --from=builder /usr/local/lib/ruby /usr/local/lib/ruby
 COPY --from=builder /usr/local/lib/libruby.so* /usr/local/lib/
 COPY --from=builder /usr/local/include/ruby-3.4.0 /usr/local/include/ruby-3.4.0
