@@ -10,7 +10,7 @@ module Videos
       begin
         download_response = Faraday.get(video_url) do |req|
           req.options.timeout = 600
-          req.options.on_data = Proc.new do |chunk, _overall_received_bytes|
+          req.options.on_data = Proc.new do |chunk|
             temp_file.write(chunk)
           end
         end
