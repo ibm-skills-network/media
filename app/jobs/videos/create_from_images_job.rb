@@ -53,8 +53,6 @@ module Videos
 
               image_file.write(image_response.body)
               audio_file.write(audio_response.body)
-              image_file.flush
-              audio_file.flush
               image_file.close
               audio_file.close
 
