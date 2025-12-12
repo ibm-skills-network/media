@@ -1,4 +1,5 @@
 class Video < ApplicationRecord
+  has_one_attached :video_file
   has_many :transcoding_processes, class_name: "Videos::TranscodingProcess", dependent: :destroy
 
   VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
@@ -6,6 +7,7 @@ class Video < ApplicationRecord
   validate :validate_external_video_link
 
   def transcode_video!
+    raise "Empty External Video Link" if external_video_link.blank?
     return if transcoding_processes.empty?
 
     processes_to_transcode = transcoding_processes.reject { |tp| tp.success? || tp.unavailable? }
@@ -96,7 +98,7 @@ class Video < ApplicationRecord
   private
 
   def validate_external_video_link
-    return unless external_video_link.present?
+    return if external_video_link.blank?
 
     unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(external_video_link))
       errors.add(:external_video_link, "must be a valid video file (mp4, webm, or mov)")
