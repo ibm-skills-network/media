@@ -146,13 +146,13 @@ module Videos
         File.open(output_file.path, "rb") do |file|
           video.video_file.attach(io: file, filename: "video_#{video.id}.mp4")
         end
+        if presigned_url.present?
+          ::Videos::UploadLinkToPresignedJob.perform_later(video.video_file.url, presigned_url)
+        end
 
       ensure
         temp_files.each(&:unlink)
         output_file&.unlink
-        if presigned_url.present?
-          ::Videos::UploadLinkToPresignedJob.perform_later(video.video_file.url, presigned_url)
-        end
       end
     end
   end
