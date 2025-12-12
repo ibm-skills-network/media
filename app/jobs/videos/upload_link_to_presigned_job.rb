@@ -2,8 +2,6 @@ module Videos
   class UploadLinkToPresignedJob < ApplicationJob
     queue_as :default
 
-    retry_on Faraday::TimeoutError, wait: :exponentially_longer, attempts: 3
-
     def perform(video_url, presigned_url)
       temp_file = Tempfile.new([ "presigned_upload_#{Time.current.to_i}", ".mp4" ], binmode: true)
 
