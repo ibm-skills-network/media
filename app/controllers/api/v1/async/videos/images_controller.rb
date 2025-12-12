@@ -6,14 +6,7 @@ module Api
           def create
             @video = Video.create!(external_video_link: nil)
 
-            chunks = params[:chunks].map do |chunk|
-              {
-                "image_url" => chunk[:image_url],
-                "audio_url" => chunk[:audio_url]
-              }
-            end
-
-            ::Videos::CreateFromImagesJob.perform_later(@video.id, chunks)
+            ::Videos::CreateFromImagesJob.perform_later(@video.id, video_params[:chunks].map(&:to_h))
 
             render json: {
               video: {
