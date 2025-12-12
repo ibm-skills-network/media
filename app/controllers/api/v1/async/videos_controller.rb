@@ -2,6 +2,7 @@ module Api
   module V1
     module Async
       class VideosController < ApiController
+        before_action :set_video, only: %w[ show destroy ]
         def show
           @video = Video.includes(:transcoding_processes).find(params[:id])
 
@@ -33,6 +34,12 @@ module Api
               }
             end
           }, status: :created
+        end
+
+        def destroy
+          @video = Video.find(params[:id])
+          @video.destroy!
+          render json: { message: "Video destroyed" }, status: :ok
         end
 
         private

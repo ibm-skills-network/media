@@ -21,7 +21,7 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1, defaults: { format: :json } do
       namespace :async do
-        resources :videos, only: [ :create ]
+        resources :videos, only: %w[ create show destroy ]
         namespace :videos do
           resources :transcoding_processes, only: [ :show ]
           resources :images, only: [ :create ]
