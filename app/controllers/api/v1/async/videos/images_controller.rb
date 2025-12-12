@@ -19,7 +19,7 @@ module Api
           private
 
           def video_params
-            params.permit(chunks: [ :image_url, :audio_url ], presigned_url:)
+            params.permit(:presigned_url, chunks: [ :image_url, :audio_url ])
           end
         end
       end
