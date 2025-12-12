@@ -13,7 +13,7 @@ module Videos
           end
         end
 
-        raise "Download Failed: #{download_response.status}" unless download_response.status.starts_with?("2")
+        raise "Download Failed: #{download_response.status}" unless download_response.success?
 
         temp_file.rewind
 
@@ -37,3 +37,4 @@ module Videos
     end
   end
 end
+

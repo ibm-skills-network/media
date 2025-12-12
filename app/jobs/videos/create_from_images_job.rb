@@ -9,7 +9,7 @@ module Videos
       video.update(external_video_link: nil) if video.present?
     end
 
-    def perform(video_id, chunks, presigned_url)
+    def perform(video_id, chunks, presigned_url: nil)
       video = Video.find(video_id)
       temp_files = []
       output_file = nil
