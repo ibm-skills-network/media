@@ -9,7 +9,7 @@ module Videos
       video.update(external_video_link: nil) if video.present?
     end
 
-    def perform(video_id, chunks)
+    def perform(video_id, chunks, presigned_url)
       video = Video.find(video_id)
       temp_files = []
       output_file = nil
@@ -150,6 +150,9 @@ module Videos
       ensure
         temp_files.each(&:unlink)
         output_file&.unlink
+        if presigned_url.present?
+          ::Videos::UploadLinkToPresignedJob.perform_later(video.video_file.url, presigned_url)
+        end
       end
     end
   end
