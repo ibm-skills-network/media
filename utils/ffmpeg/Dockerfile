@@ -39,6 +39,8 @@ RUN git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git /tmp/nv-c
 RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
     cd /tmp/ffmpeg && \
     ./configure \
+        --enable-gpl \
+        --enable-version3 \
         --enable-nonfree \
         --enable-cuda-nvcc \
         --enable-cuvid \
