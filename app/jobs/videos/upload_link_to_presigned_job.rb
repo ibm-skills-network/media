@@ -37,4 +37,3 @@ module Videos
     end
   end
 end
-
