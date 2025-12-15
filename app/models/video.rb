@@ -7,7 +7,9 @@ class Video < ApplicationRecord
   validate :validate_external_video_link
 
   def transcode_video!
-    raise "Empty External Video Link" if external_video_link.blank?
+    video_link = external_video_link || video_file.url
+    raise "Video link is blank" if video_link.blank?
+
     return if transcoding_processes.empty?
 
     processes_to_transcode = transcoding_processes.reject { |tp| tp.success? || tp.unavailable? }
@@ -20,7 +22,7 @@ class Video < ApplicationRecord
       "-y",
       "-hwaccel", "cuda",
       "-hwaccel_output_format", "cuda",
-      "-i", external_video_link
+      "-i", video_link
     ]
 
     temp_outputs = {}
