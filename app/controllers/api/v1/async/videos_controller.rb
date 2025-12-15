@@ -20,7 +20,12 @@ module Api
         end
 
         def create
-          @video = Video.create!(external_video_link: video_params[:external_video_link])
+          if video_params[:video_file].present?
+            @video = Video.create!
+            @video.video_file.attach(video_params[:video_file])
+          else
+            @video = Video.create!(external_video_link: video_params[:external_video_link])
+          end
 
           transcoding_profile_labels = video_params[:transcoding_profile_labels]
           ::Videos::TranscodingProcess.create_transcoding_processes!(@video, transcoding_profile_labels)
@@ -45,7 +50,7 @@ module Api
         private
 
         def video_params
-          params.permit(:external_video_link, transcoding_profile_labels: [])
+          params.permit(:external_video_link, :video_file, transcoding_profile_labels: [])
         end
       end
     end

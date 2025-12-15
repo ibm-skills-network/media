@@ -99,11 +99,12 @@ class Video < ApplicationRecord
 
   private
 
-  def validate_external_video_link
-    return if external_video_link.blank?
+  def validate_video_link
+    video_link = external_video_link || video_file.url
+    return if video_link.blank?
 
-    unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(external_video_link))
-      errors.add(:external_video_link, "must be a valid video file (mp4, webm, or mov)")
+    unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(video_link))
+      errors.add(:base, "must be a valid video file (mp4, webm, or mov)")
     end
   end
 end
