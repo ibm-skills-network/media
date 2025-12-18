@@ -23,6 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnuma1 \
     libnuma-dev \
     libssl-dev \
+    libx264-dev \
+    libpng-dev \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install NVIDIA codec headers
@@ -42,9 +45,15 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
         --enable-cuda-nvcc \
         --enable-cuvid \
         --enable-nvenc \
+        --enable-libx264 \
         --enable-nvdec \
         --enable-libnpp \
         --enable-openssl \
+        --enable-gpl \
+        --enable-decoder=png \
+        --enable-encoder=aac \
+        --enable-decoder=pcm_s16le \
+        --enable-protocol=file \
         --extra-cflags=-I/usr/local/cuda/include \
         --extra-ldflags=-L/usr/local/cuda/lib64 \
         --disable-static \
@@ -64,6 +73,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnuma1 \
     ca-certificates \
     libssl3 \
+    libx264-163 \
+    libpng16-16 \
+    zlib1g \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy FFmpeg binaries and libraries from builder
