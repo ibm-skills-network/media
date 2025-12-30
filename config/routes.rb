@@ -23,7 +23,7 @@ Rails.application.routes.draw do
       namespace :async do
         resources :videos, only: %w[ create show destroy ]
         namespace :videos do
-          resources :transcoding_processes, only: [ :show ]
+          resources :transcoding_processes, only: %w[ show destroy ]
           resources :images, only: [ :create ]
         end
       end
