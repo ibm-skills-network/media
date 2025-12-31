@@ -9,6 +9,7 @@ module Api
           render json: {
             id: @video.id,
             external_video_link: @video.external_video_link,
+            status: @video.status,
             transcoding_processes: @video.transcoding_processes.map do |transcoding_process|
               {
                 id: transcoding_process.id,
@@ -27,10 +28,13 @@ module Api
             @video = Video.create!(external_video_link: video_params[:external_video_link])
           end
 
+          @video.success!
+
           transcoding_profile_labels = video_params[:transcoding_profile_labels]
           ::Videos::TranscodingProcess.create_transcoding_processes!(@video, transcoding_profile_labels)
           ::Videos::TranscodeVideoJob.perform_later(@video.id)
           render json: {
+            status: @video.status,
             transcoding_processes: @video.transcoding_processes.map do |transcoding_process|
               {
                 id: transcoding_process.id,

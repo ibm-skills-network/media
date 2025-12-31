@@ -4,6 +4,8 @@ class Video < ApplicationRecord
 
   VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
 
+  enum :status, { processing: "processing", success: "success", failed: "failed", unavailable: "unavailable" }, default: "processing"
+
   validate :validate_external_video_link
 
   def transcode_video!

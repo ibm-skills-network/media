@@ -4,14 +4,14 @@ module Api
       module Videos
         class ImagesController < ApiController
           def create
-            @video = Video.create!(external_video_link: nil)
+            @video = Video.create!(external_video_link: nil, status: "processing")
 
             ::Videos::CreateFromImagesJob.perform_later(@video.id, video_params[:chunks].map(&:to_h), presigned_url: video_params[:presigned_url])
 
             render json: {
               video: {
                 id: @video.id,
-                status: "processing"
+                status: @video.status
               }
             }, status: :created
           end
