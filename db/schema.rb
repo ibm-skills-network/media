@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_11_25_194131) do
+ActiveRecord::Schema[8.1].define(version: 2025_12_31_172733) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -48,6 +48,7 @@ ActiveRecord::Schema[8.1].define(version: 2025_11_25_194131) do
   create_table "videos", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "external_video_link"
+    t.string "status", default: "processing"
     t.datetime "updated_at", null: false
   end
 
