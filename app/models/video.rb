@@ -4,13 +4,18 @@ class Video < ApplicationRecord
 
   VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
 
-  enum :status, { processing: "processing", success: "success", failed: "failed", unavailable: "unavailable" }, default: "processing"
+  enum :status, { pending: "pending", processing: "processing", success: "success", failed: "failed", unavailable: "unavailable" }, default: "pending"
 
-  validate :validate_video_link
+  validate :validate_video
+  validate :only_one_video_source
+
+
+  def video_source
+    external_video_link.present? ? external_video_link : video_file.url
+  end
 
   def transcode_video!
-    video_link = external_video_link || video_file.url
-    raise "Video link is blank" if video_link.blank?
+    raise "Video source is blank" if video_source.blank?
 
     return if transcoding_processes.empty?
 
@@ -24,7 +29,7 @@ class Video < ApplicationRecord
       "-y",
       "-hwaccel", "cuda",
       "-hwaccel_output_format", "cuda",
-      "-i", video_link
+      "-i", video_source
     ]
 
     temp_outputs = {}
@@ -101,12 +106,19 @@ class Video < ApplicationRecord
 
   private
 
-  def validate_video_link
-    video_link = external_video_link || video_file.url
-    return if video_link.blank?
+  def validate_video
+    if external_video_link.present? && !VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(external_video_link))
+      errors.add(:base, "external video link must be a valid video link (mp4, webm, or mov)")
+    end
 
-    unless VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(video_link))
-      errors.add(:base, "must be a valid video file (mp4, webm, or mov)")
+    if video_file.attached? && !VIDEO_TYPES.include?(video_file.blob.content_type)
+      errors.add(:base, "video file must be a valid video file (mp4, webm, or mov)")
+    end
+  end
+
+  def only_one_video_source
+    if external_video_link.present? && video_file.attached?
+      errors.add(:base, "only one video source can be provided")
     end
   end
 end

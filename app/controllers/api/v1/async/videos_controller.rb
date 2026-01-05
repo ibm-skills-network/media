@@ -27,7 +27,12 @@ module Api
             @video = Video.create!(external_video_link: video_params[:external_video_link])
           end
 
+          if !@video.valid?
+            render json: { error: @video.errors.full_messages.join(", ") }, status: :unprocessable_entity and return
+          end
+
           @video.success!
+
 
           transcoding_profile_labels = video_params[:transcoding_profile_labels]
           ::Videos::TranscodingProcess.create_transcoding_processes!(@video, transcoding_profile_labels)
@@ -42,12 +47,6 @@ module Api
               }
             end
           }, status: :created
-        end
-
-        def destroy
-          @video = Video.find(video_params[:id])
-          @video.destroy!
-          render json: { message: "Video destroyed" }, status: :ok
         end
 
         private

@@ -5,17 +5,17 @@ module Videos
 
     sidekiq_retries_exhausted do |msg, exception|
       Rails.logger.error("Failed #{msg['class']} with #{msg['args']}: #{exception.message}")
-      video = Video.find(msg["args"].first)
-      video.update(external_video_link: nil) if video.present?
+      video = Video.find_by(id: msg["args"].first)
+      video&.failed!
     end
 
     def perform(video_id, chunks, presigned_url: nil)
       video = Video.find(video_id)
+      video.processing!
       temp_files = []
       output_file = nil
 
       begin
-
         # Download all files in parallel with thread pool
         mutex = Mutex.new
         image_files = []
@@ -52,7 +52,7 @@ module Videos
 
               # Get audio duration using ffprobe
               duration_cmd = [ "ffprobe", "-i", audio_file.path, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0" ]
-              duration, stderr, status = Open3.capture3(*duration_cmd)
+              duration, _stderr, status = Open3.capture3(*duration_cmd)
 
               if !status.success? || duration.strip.empty?
                 raise "Failed to get audio duration for chunk #{i}"
@@ -64,7 +64,6 @@ module Videos
                 audio_durations[i] = duration.strip
                 temp_files << image_file << audio_file
               end
-
             end
           end
 
@@ -126,10 +125,13 @@ module Videos
         File.open(output_file.path, "rb") do |file|
           video.video_file.attach(io: file, filename: "video_#{video.id}.mp4")
         end
+        video.success!
         if presigned_url.present?
           ::Videos::UploadLinkToPresignedJob.perform_later(video.video_file.url, presigned_url)
         end
-
+      rescue => e
+        video.pending!
+        raise e
       ensure
         temp_files.each(&:unlink)
         output_file&.unlink
