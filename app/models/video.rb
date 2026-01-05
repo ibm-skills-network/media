@@ -6,7 +6,7 @@ class Video < ApplicationRecord
 
   enum :status, { processing: "processing", success: "success", failed: "failed", unavailable: "unavailable" }, default: "processing"
 
-  validate :validate_external_video_link
+  validate :validate_video_link
 
   def transcode_video!
     video_link = external_video_link || video_file.url

@@ -2,9 +2,8 @@ module Api
   module V1
     module Async
       class VideosController < ApiController
-        before_action :set_video, only: %w[ show destroy ]
         def show
-          @video = Video.includes(:transcoding_processes).find(params[:id])
+          @video = Video.includes(:transcoding_processes).find(video_params[:id])
 
           render json: {
             id: @video.id,
@@ -46,7 +45,7 @@ module Api
         end
 
         def destroy
-          @video = Video.find(params[:id])
+          @video = Video.find(video_params[:id])
           @video.destroy!
           render json: { message: "Video destroyed" }, status: :ok
         end
@@ -54,7 +53,7 @@ module Api
         private
 
         def video_params
-          params.permit(:external_video_link, :video_file, transcoding_profile_labels: [])
+          params.permit(:id, :external_video_link, :video_file, transcoding_profile_labels: [])
         end
       end
     end
