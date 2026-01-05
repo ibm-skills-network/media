@@ -34,14 +34,9 @@ module Videos
               image_file.binmode
               audio_file.binmode
 
-              # Download using Faraday
-              Rails.logger.info("Downloading chunk #{i}: image from #{chunk['image_url'][0..50]}...")
               image_response = Faraday.get(chunk["image_url"])
-              Rails.logger.info("Chunk #{i} image response: status=#{image_response.status}, size=#{image_response.body.bytesize} bytes")
 
-              Rails.logger.info("Downloading chunk #{i}: audio from #{chunk['audio_url'][0..50]}...")
               audio_response = Faraday.get(chunk["audio_url"])
-              Rails.logger.info("Chunk #{i} audio response: status=#{audio_response.status}, size=#{audio_response.body.bytesize} bytes")
 
               if image_response.status != 200
                 raise "Failed to download image for chunk #{i}: HTTP #{image_response.status}"
@@ -61,8 +56,6 @@ module Videos
               duration, stderr, status = Open3.capture3(*duration_cmd)
 
               if !status.success? || duration.strip.empty?
-                Rails.logger.error("Failed to get duration for chunk #{i}: stderr='#{stderr}', stdout='#{duration}', status=#{status.exitstatus}")
-                Rails.logger.error("Audio file path: #{audio_file.path}, exists: #{File.exist?(audio_file.path)}, size: #{File.size(audio_file.path) rescue 'unknown'}")
                 raise "Failed to get audio duration for chunk #{i}"
               end
 
@@ -73,25 +66,17 @@ module Videos
                 temp_files << image_file << audio_file
               end
 
-              Rails.logger.info("Downloaded chunk #{i + 1}/#{chunks.length}")
             end
           end
 
           threads.each(&:join)
-          Rails.logger.info("Completed batch #{batch_index + 1}/#{(chunks.length.to_f / MAX_THREADS).ceil}")
         end
 
-        Rails.logger.info("All downloads complete")
-        Rails.logger.info("Audio durations: #{audio_durations.inspect}")
-
-        # Verify all durations were captured
         audio_durations.each_with_index do |duration, i|
           if duration.nil? || duration.empty?
             raise "Missing duration for chunk #{i}"
           end
         end
-
-        Rails.logger.info("Processing all chunks in single ffmpeg command")
 
         # Build ffmpeg command with all inputs
         command = [ "ffmpeg" ]
@@ -133,13 +118,9 @@ module Videos
           output_file.path
         ]
 
-        Rails.logger.info("Running ffmpeg command")
         _stdout, stderr, status = Open3.capture3(*command)
 
-        if status.success?
-          Rails.logger.info("FFmpeg completed successfully")
-        else
-          Rails.logger.error("FFmpeg failed: #{stderr}")
+        if !status.success?
           raise "FFmpeg processing failed: #{stderr}"
         end
 
