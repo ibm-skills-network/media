@@ -22,7 +22,6 @@ module Videos
         audio_files = []
         audio_durations = []
 
-        # Process chunks in batches using thread pool
         chunks.each_slice(MAX_THREADS).with_index do |chunk_batch, batch_index|
           threads = chunk_batch.map.with_index do |chunk, batch_i|
             i = batch_index * MAX_THREADS + batch_i
@@ -50,7 +49,6 @@ module Videos
               image_file.close
               audio_file.close
 
-              # Get audio duration using ffprobe
               duration_cmd = [ "ffprobe", "-i", audio_file.path, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0" ]
               duration, _stderr, status = Open3.capture3(*duration_cmd)
 
