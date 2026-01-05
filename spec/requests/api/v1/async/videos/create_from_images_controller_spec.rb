@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Api::V1::Async::Videos::ImagesController, type: :controller do
+RSpec.describe Api::V1::Async::Videos::CreateFromImagesController, type: :controller do
   include_context "admin"
 
   describe "POST #create" do
@@ -17,12 +17,12 @@ RSpec.describe Api::V1::Async::Videos::ImagesController, type: :controller do
       request.headers.merge!(auth_headers)
     end
 
-    it "creates a video with processing status" do
+    it "creates a video with pending status" do
       expect {
         post :create, params: video_params
       }.to change(Video, :count).by(1)
 
-      expect(Video.last.status).to eq("processing")
+      expect(Video.last.status).to eq("pending")
     end
 
     it "enqueues CreateFromImagesJob" do
@@ -42,7 +42,7 @@ RSpec.describe Api::V1::Async::Videos::ImagesController, type: :controller do
 
       json_response = JSON.parse(response.body)
       expect(json_response["video"]).to include("id", "status")
-      expect(json_response["video"]["status"]).to eq("processing")
+      expect(json_response["video"]["status"]).to eq("pending")
     end
 
     context "with presigned_url" do

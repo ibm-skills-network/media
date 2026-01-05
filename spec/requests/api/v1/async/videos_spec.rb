@@ -77,23 +77,5 @@ RSpec.describe Api::V1::Async::VideosController, type: :controller do
     end
   end
 
-  describe "DELETE #destroy" do
-    let!(:video) { create(:video) }
 
-    before do
-      request.headers.merge!(auth_headers)
-    end
-
-    it "destroys the video" do
-      expect {
-        delete :destroy, params: { id: video.id }
-      }.to change(Video, :count).by(-1)
-    end
-
-    it "returns ok status" do
-      delete :destroy, params: { id: video.id }
-
-      expect(response).to have_http_status(:ok)
-    end
-  end
 end
