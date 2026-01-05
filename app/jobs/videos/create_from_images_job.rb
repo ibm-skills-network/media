@@ -15,7 +15,6 @@ module Videos
       output_file = nil
 
       begin
-        Rails.logger.info("Downloading #{chunks.length} files with max #{MAX_THREADS} threads")
 
         # Download all files in parallel with thread pool
         mutex = Mutex.new

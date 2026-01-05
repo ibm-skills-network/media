@@ -18,7 +18,6 @@ module Videos
         temp_file.rewind
 
         content_type = download_response.headers["content-type"]
-        Rails.logger.info("Content Type: #{content_type}")
 
         upload_response = Faraday.put(presigned_url) do |req|
           req.headers["Content-Type"] = content_type
