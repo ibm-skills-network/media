@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Videos::CreateFromImagesJob, type: :job do
+RSpec.describe Videos::ImagesToVideoJob, type: :job do
   include_context "ffmpeg video api"
 
   let(:video) { create(:video, external_video_link: nil, status: "processing") }

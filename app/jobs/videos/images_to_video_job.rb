@@ -1,5 +1,5 @@
 module Videos
-  class CreateFromImagesJob < ApplicationJob
+  class ImagesToVideoJob < ApplicationJob
     queue_as :gpu
     MAX_THREADS = 5
 

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Api::V1::Async::Videos::CreateFromImagesController, type: :controller do
+RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :controller do
   include_context "admin"
 
   describe "POST #create" do
@@ -25,10 +25,10 @@ RSpec.describe Api::V1::Async::Videos::CreateFromImagesController, type: :contro
       expect(Video.last.status).to eq("pending")
     end
 
-    it "enqueues CreateFromImagesJob" do
+    it "enqueues ImagesToVideoJob" do
       expect {
         post :create, params: video_params
-      }.to have_enqueued_job(Videos::CreateFromImagesJob)
+      }.to have_enqueued_job(Videos::ImagesToVideoJob)
     end
 
     it "returns created status" do
@@ -53,7 +53,7 @@ RSpec.describe Api::V1::Async::Videos::CreateFromImagesController, type: :contro
       it "passes presigned_url to the job" do
         post :create, params: video_params_with_presigned
 
-        expect(Videos::CreateFromImagesJob).to have_been_enqueued.with(
+        expect(Videos::ImagesToVideoJob).to have_been_enqueued.with(
           anything,
           anything,
           presigned_url: "https://example.com/presigned"

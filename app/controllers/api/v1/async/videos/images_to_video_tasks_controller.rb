@@ -2,11 +2,11 @@ module Api
   module V1
     module Async
       module Videos
-        class CreateFromImagesController < ApiController
+        class ImagesToVideoTasksController < ApiController
           def create
             @video = Video.create!(external_video_link: nil, status: "pending")
 
-            ::Videos::CreateFromImagesJob.perform_later(@video.id, video_params[:chunks].map(&:to_h), presigned_url: video_params[:presigned_url])
+            ::Videos::ImagesToVideoJob.perform_later(@video.id, video_params[:chunks].map(&:to_h), presigned_url: video_params[:presigned_url])
 
             render json: {
               video: {

@@ -21,10 +21,10 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1, defaults: { format: :json } do
       namespace :async do
-        resources :videos, only: %w[ create show ]
+        resources :videos, only: %w[ show ]
         namespace :videos do
-          resources :transcoding_processes, only: %w[ show ]
-          resources :create_from_images, only: [ :create ]
+          resources :transcoding_tasks, only: %w[ show create ]
+          resources :images_to_video_tasks, only: [ :create ]
         end
       end
     end

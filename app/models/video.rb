@@ -1,6 +1,6 @@
 class Video < ApplicationRecord
   has_one_attached :video_file
-  has_many :transcoding_processes, class_name: "Videos::TranscodingProcess", dependent: :destroy
+  has_many :transcoding_tasks, class_name: "Videos::TranscodingTask", dependent: :destroy
 
   VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
 
@@ -17,9 +17,9 @@ class Video < ApplicationRecord
   def transcode_video!
     raise "Video source is blank" if video_source_url.blank?
 
-    return if transcoding_processes.empty?
+    return if transcoding_tasks.empty?
 
-    processes_to_transcode = transcoding_processes.reject { |tp| tp.success? || tp.unavailable? }
+    processes_to_transcode = transcoding_tasks.reject { |tp| tp.success? || tp.unavailable? }
     return if processes_to_transcode.empty?
 
     processes_to_transcode.each(&:processing!)
@@ -37,26 +37,26 @@ class Video < ApplicationRecord
 
     # Build temp files and scaling filters
     # Note: We scale directly from [0:v] for each output to keep everything on GPU
-    processes_to_transcode.each_with_index do |transcoding_process, index|
-      temp_file = Tempfile.new([ "#{transcoding_process.id}_output", ".mp4" ])
+    processes_to_transcode.each_with_index do |transcoding_task, index|
+      temp_file = Tempfile.new([ "#{transcoding_task.id}_output", ".mp4" ])
       temp_file.close
-      temp_outputs[transcoding_process] = temp_file
+      temp_outputs[transcoding_task] = temp_file
 
       # Scale directly from input - FFmpeg will handle multiple reads efficiently
-      filter_complex << "[0:v]scale_cuda=min(#{transcoding_process.transcoding_profile.width}\\,iw):min(#{transcoding_process.transcoding_profile.height}\\,ih)[v#{index}]"
+      filter_complex << "[0:v]scale_cuda=min(#{transcoding_task.transcoding_profile.width}\\,iw):min(#{transcoding_task.transcoding_profile.height}\\,ih)[v#{index}]"
     end
 
     # Add the filter_complex option
     command += [ "-filter_complex", filter_complex.join(";") ]
 
     # Add each output with its mapped stream
-    processes_to_transcode.each_with_index do |transcoding_process, index|
-      temp_file = temp_outputs[transcoding_process]
+    processes_to_transcode.each_with_index do |transcoding_task, index|
+      temp_file = temp_outputs[transcoding_task]
       command += [
         "-map", "[v#{index}]",
         "-map", "0:a?",
-        "-c:v", transcoding_process.transcoding_profile.codec,
-        "-b:v", transcoding_process.transcoding_profile.bitrate_string,
+        "-c:v", transcoding_task.transcoding_profile.codec,
+        "-b:v", transcoding_task.transcoding_profile.bitrate_string,
         "-preset", "p4",
         "-c:a", "aac",
         "-b:a", "128k",
@@ -68,14 +68,14 @@ class Video < ApplicationRecord
     _stdout, stderr, status = Open3.capture3(*command)
 
     if status.success?
-      temp_outputs.each do |transcoding_process, temp_file|
+      temp_outputs.each do |transcoding_task, temp_file|
         if File.exist?(temp_file.path) && File.size(temp_file.path) > 0
           File.open(temp_file.path, "rb") do |file|
-            transcoding_process.video_file.attach(io: file, filename: "transcoded_#{transcoding_process.id}_output.mp4")
+            transcoding_task.video_file.attach(io: file, filename: "transcoded_#{transcoding_task.id}_output.mp4")
           end
-          transcoding_process.success!
+          transcoding_task.success!
         else
-          transcoding_process.failed!
+          transcoding_task.failed!
         end
       end
     else
