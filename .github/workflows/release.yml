@@ -47,7 +47,7 @@ jobs:
 
   build-ffmpeg:
     needs: check-ffmpeg-changes
-    if: needs.check-ffmpeg-changes.outputs.changed == 'true'
+    if: false 
     uses: ibm-skills-network/.github/.github/workflows/release.yml@main
     with:
       image: icr.io/skills-network/media/ffmpeg
