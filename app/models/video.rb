@@ -4,8 +4,6 @@ class Video < ApplicationRecord
 
   VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
 
-  enum :status, { pending: "pending", processing: "processing", success: "success", failed: "failed", unavailable: "unavailable" }, default: "pending"
-
   validate :validate_video
   validate :only_one_video_source
 

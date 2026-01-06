@@ -25,14 +25,10 @@ module Api
               render json: { error: @video.errors.full_messages.join(", ") }, status: :unprocessable_entity and return
             end
 
-            @video.success!
-
-
             transcoding_profile_labels = video_params[:transcoding_profile_labels]
             ::Videos::TranscodingTask.create_transcoding_tasks!(@video, transcoding_profile_labels)
             ::Videos::TranscodeVideoJob.perform_later(@video.id)
             render json: {
-              status: @video.status,
               transcoding_tasks: @video.transcoding_tasks.map do |transcoding_task|
                 {
                   id: transcoding_task.id,
