@@ -5,13 +5,13 @@ module Videos
 
     sidekiq_retries_exhausted do |msg, exception|
       Rails.logger.error("Failed #{msg['class']} with #{msg['args']}: #{exception.message}")
-      video = Video.find_by(id: msg["args"].first)
-      video&.failed!
+      task = ImagesToVideoTask.find_by(id: msg["args"].first)
+      task&.failed!
     end
 
-    def perform(video_id, chunks, presigned_url: nil)
-      video = Video.find(video_id)
-      video.processing!
+    def perform(task_id, chunks, presigned_url: nil)
+      task = ImagesToVideoTask.find(task_id)
+      task.processing!
       temp_files = []
       output_file = nil
 
@@ -121,14 +121,14 @@ module Videos
         end
 
         File.open(output_file.path, "rb") do |file|
-          video.video_file.attach(io: file, filename: "video_#{video.id}.mp4")
+          task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.mp4")
         end
-        video.success!
+        task.success!
         if presigned_url.present?
-          ::Videos::UploadLinkToPresignedJob.perform_later(video.video_file.url, presigned_url)
+          ::Videos::UploadLinkToPresignedJob.perform_later(task.video_file.url, presigned_url)
         end
       rescue => e
-        video.pending!
+        task.pending!
         raise e
       ensure
         temp_files.each(&:unlink)

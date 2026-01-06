@@ -4,21 +4,21 @@ module Api
       module Videos
         class ImagesToVideoTasksController < ApiController
           def create
-            @video = Video.create!(external_video_link: nil, status: "pending")
+            @task = ::Videos::ImagesToVideoTask.create!
 
-            ::Videos::ImagesToVideoJob.perform_later(@video.id, video_params[:chunks].map(&:to_h), presigned_url: video_params[:presigned_url])
+            ::Videos::ImagesToVideoJob.perform_later(@task.id, task_params[:chunks].map(&:to_h), presigned_url: task_params[:presigned_url])
 
             render json: {
-              video: {
-                id: @video.id,
-                status: @video.status
+              images_to_video_task: {
+                id: @task.id,
+                status: @task.status
               }
             }, status: :created
           end
 
           private
 
-          def video_params
+          def task_params
             params.permit(:presigned_url, chunks: [ :image_url, :audio_url ])
           end
         end

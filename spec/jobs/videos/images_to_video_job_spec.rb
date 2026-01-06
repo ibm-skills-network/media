@@ -3,7 +3,7 @@ require "rails_helper"
 RSpec.describe Videos::ImagesToVideoJob, type: :job do
   include_context "ffmpeg video api"
 
-  let(:video) { create(:video, external_video_link: nil, status: "processing") }
+  let(:task) { create(:images_to_video_task, status: "pending") }
   let(:chunks) do
     [
       { "image_url" => "https://example.com/image1.png", "audio_url" => "https://example.com/audio1.mp3" },
@@ -33,20 +33,26 @@ RSpec.describe Videos::ImagesToVideoJob, type: :job do
     end
 
     it "creates a video from image and audio chunks" do
-      described_class.new.perform(video.id, chunks)
+      described_class.new.perform(task.id, chunks)
 
-      expect(video.reload.video_file).to be_attached
+      expect(task.reload.video_file).to be_attached
+    end
+
+    it "sets status to success" do
+      described_class.new.perform(task.id, chunks)
+
+      expect(task.reload.status).to eq("success")
     end
 
     it "enqueues UploadLinkToPresignedJob when presigned_url is provided" do
       expect {
-        described_class.new.perform(video.id, chunks, presigned_url: "https://example.com/presigned")
+        described_class.new.perform(task.id, chunks, presigned_url: "https://example.com/presigned")
       }.to have_enqueued_job(Videos::UploadLinkToPresignedJob)
     end
 
     it "does not enqueue UploadLinkToPresignedJob when presigned_url is not provided" do
       expect {
-        described_class.new.perform(video.id, chunks)
+        described_class.new.perform(task.id, chunks)
       }.not_to have_enqueued_job(Videos::UploadLinkToPresignedJob)
     end
 
@@ -59,7 +65,7 @@ RSpec.describe Videos::ImagesToVideoJob, type: :job do
 
       it "raises an error" do
         expect {
-          described_class.new.perform(video.id, chunks)
+          described_class.new.perform(task.id, chunks)
         }.to raise_error(/Failed to download image/)
       end
     end
@@ -77,7 +83,7 @@ RSpec.describe Videos::ImagesToVideoJob, type: :job do
 
       it "raises an error" do
         expect {
-          described_class.new.perform(video.id, chunks)
+          described_class.new.perform(task.id, chunks)
         }.to raise_error(/FFmpeg processing failed/)
       end
     end

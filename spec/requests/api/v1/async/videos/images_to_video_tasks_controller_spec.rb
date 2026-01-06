@@ -4,7 +4,7 @@ RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :cont
   include_context "admin"
 
   describe "POST #create" do
-    let(:video_params) do
+    let(:task_params) do
       {
         chunks: [
           { image_url: "https://example.com/image1.png", audio_url: "https://example.com/audio1.mp3" },
@@ -17,41 +17,41 @@ RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :cont
       request.headers.merge!(auth_headers)
     end
 
-    it "creates a video with pending status" do
+    it "creates an ImagesToVideoTask with pending status" do
       expect {
-        post :create, params: video_params
-      }.to change(Video, :count).by(1)
+        post :create, params: task_params
+      }.to change(Videos::ImagesToVideoTask, :count).by(1)
 
-      expect(Video.last.status).to eq("pending")
+      expect(Videos::ImagesToVideoTask.last.status).to eq("pending")
     end
 
     it "enqueues ImagesToVideoJob" do
       expect {
-        post :create, params: video_params
+        post :create, params: task_params
       }.to have_enqueued_job(Videos::ImagesToVideoJob)
     end
 
     it "returns created status" do
-      post :create, params: video_params
+      post :create, params: task_params
 
       expect(response).to have_http_status(:created)
     end
 
-    it "returns video id and status" do
-      post :create, params: video_params
+    it "returns task id and status" do
+      post :create, params: task_params
 
       json_response = JSON.parse(response.body)
-      expect(json_response["video"]).to include("id", "status")
-      expect(json_response["video"]["status"]).to eq("pending")
+      expect(json_response["images_to_video_task"]).to include("id", "status")
+      expect(json_response["images_to_video_task"]["status"]).to eq("pending")
     end
 
     context "with presigned_url" do
-      let(:video_params_with_presigned) do
-        video_params.merge(presigned_url: "https://example.com/presigned")
+      let(:task_params_with_presigned) do
+        task_params.merge(presigned_url: "https://example.com/presigned")
       end
 
       it "passes presigned_url to the job" do
-        post :create, params: video_params_with_presigned
+        post :create, params: task_params_with_presigned
 
         expect(Videos::ImagesToVideoJob).to have_been_enqueued.with(
           anything,
