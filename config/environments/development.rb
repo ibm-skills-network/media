@@ -58,4 +58,8 @@ Rails.application.configure do
 
   # Set default URL options for ActiveStorage
   Rails.application.default_url_options = { host: "localhost", port: 3009 }
+
+  config.after_initialize do
+    ActiveStorage::Current.url_options = { host: "localhost", port: 3009 }
+  end
 end

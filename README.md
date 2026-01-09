@@ -1,24 +1,72 @@
-# README
+# Media - GPU-Accelerated Video Transcoding Service
 
-This README would normally document whatever steps are necessary to get the
-application up and running.
+A video transcoding service built with Rails that leverages NVIDIA CUDA hardware acceleration to transcode videos to multiple quality levels. The service processes videos asynchronously using background jobs and stores outputs to cloud storage.
 
-Things you may want to cover:
+## Getting Started
 
-* Ruby version
+### Prerequisites
 
-* System dependencies
+- Ruby 3.4.7
+- FFmpeg with CUDA support
+- NVIDIA GPU with NVENC/NVDEC support
+- Docker & Docker Compose
 
-* Configuration
+### Setup
 
-* Database creation
+1. **Clone the repository**
 
-* Database initialization
+   ```bash
+   git clone <repository-url>
+   cd media
+   ```
 
-* How to run the test suite
+2. **Install dependencies**
 
-* Services (job queues, cache servers, search engines, etc.)
+   ```bash
+   bundle install
+   ```
 
-* Deployment instructions
+3. **Start services and setup database**
 
-* ...
+   ```bash
+   docker-compose up -d
+   bin/rails db:setup
+   ```
+
+4. **Start the application**
+
+   ```bash
+   bin/dev
+   ```
+
+5. **Access the application**
+   - API: http://localhost:3009
+   - Sidekiq UI: http://localhost:3009/sidekiq
+
+## Key Features
+
+- **GPU-Accelerated Transcoding** - NVIDIA CUDA hardware encoding/decoding
+- **Multiple Quality Profiles** - Automatic transcoding to 480p, 720p, and 1080p
+- **AV1 Encoding** - Modern AV1 codec with hardware acceleration
+- **Asynchronous Processing** - Background job processing with Sidekiq
+- **Cloud Storage** - S3 and IBM Cloud Object Storage integration
+
+## GPU Compatibility
+
+This service requires an NVIDIA GPU with AV1 NVENC support (RTX 40 series or newer). See the [NVIDIA Video Encode and Decode GPU Support Matrix](https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new) for compatible hardware.
+
+FFmpeg is compiled from source with CUDA support. To build the FFmpeg image locally:
+
+```bash
+docker build -f utils/ffmpeg/Dockerfile -t ffmpeg-cuda:latest .
+```
+
+## Testing
+
+```bash
+bundle exec rspec
+```
+
+## License
+
+Apache License 2.0

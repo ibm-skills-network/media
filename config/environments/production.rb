@@ -71,25 +71,34 @@ Rails.application.configure do
 
   if Settings.redis
 
-    sentinel_config = {
-      url: Settings.redis.url || "redis://localhost:6379",
-      role: "master",
-      sentinels: [ {
-        host: Settings.redis.sentinel.host,
-        port: Settings.redis.sentinel.port,
+    redis_pool = ConnectionPool.new(size: 5, timeout: 5) do
+      Redis.new(
+        url: Settings.redis.url || "redis://mymaster",
+        sentinels: [ {
+          host: Settings.redis.sentinel.host,
+          port: Settings.redis.sentinel.port,
+          password: Settings.redis.sentinel.password
+        } ],
+        role: :master,
         password: Settings.redis.sentinel.password
-      } ],
-      password: Settings.redis.sentinel.password
-    }
-    config.cache_store = :redis_cache_store, sentinel_config.merge(
+      )
+    end
+
+    config.cache_store = :redis_cache_store, {
+      redis: redis_pool,
       namespace: "cache",
       expires_in: 1.day
-    )
+    }
   else
-    # Use a different cache store in production.
-    # config.cache_store = :mem_cache_store
+    # development cache store/single redis instance
     redis_url = ENV.fetch("REDIS_URL", "redis://localhost:6381").strip
 
-    config.cache_store = :redis_cache_store, { url: redis_url, connect_timeout: 30, read_timeout: 2, write_timeout: 2, reconnect_attempts: 1 }
+    redis_pool = ConnectionPool.new(size: 5, timeout: 5) do
+      Redis.new(url: redis_url, connect_timeout: 30, read_timeout: 2, write_timeout: 2, reconnect_attempts: 1)
+    end
+
+    config.cache_store = :redis_cache_store, {
+      redis: redis_pool
+    }
   end
 end
