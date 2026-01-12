@@ -9,7 +9,7 @@ module Videos
       task&.failed!
     end
 
-    def perform(task_id, chunks, presigned_url: nil)
+    def perform(task_id, chunks)
       task = ImagesToVideoTask.find(task_id)
       task.processing!
       temp_files = []
@@ -124,9 +124,6 @@ module Videos
           task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.mp4")
         end
         task.success!
-        if presigned_url.present?
-          ::Videos::UploadLinkToPresignedJob.perform_later(task.video_file.url, presigned_url)
-        end
       rescue => e
         task.pending!
         raise e

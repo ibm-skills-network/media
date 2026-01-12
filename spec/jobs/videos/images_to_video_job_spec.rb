@@ -44,18 +44,6 @@ RSpec.describe Videos::ImagesToVideoJob, type: :job do
       expect(task.reload.status).to eq("success")
     end
 
-    it "enqueues UploadLinkToPresignedJob when presigned_url is provided" do
-      expect {
-        described_class.new.perform(task.id, chunks, presigned_url: "https://example.com/presigned")
-      }.to have_enqueued_job(Videos::UploadLinkToPresignedJob)
-    end
-
-    it "does not enqueue UploadLinkToPresignedJob when presigned_url is not provided" do
-      expect {
-        described_class.new.perform(task.id, chunks)
-      }.not_to have_enqueued_job(Videos::UploadLinkToPresignedJob)
-    end
-
     context "when image download fails" do
       before do
         allow(Faraday).to receive(:get).and_return(

@@ -44,21 +44,5 @@ RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :cont
       expect(json_response["images_to_video_task"]).to include("id", "status")
       expect(json_response["images_to_video_task"]["status"]).to eq("pending")
     end
-
-    context "with presigned_url" do
-      let(:task_params_with_presigned) do
-        task_params.merge(presigned_url: "https://example.com/presigned")
-      end
-
-      it "passes presigned_url to the job" do
-        post :create, params: task_params_with_presigned
-
-        expect(Videos::ImagesToVideoJob).to have_been_enqueued.with(
-          anything,
-          anything,
-          presigned_url: "https://example.com/presigned"
-        )
-      end
-    end
   end
 end
