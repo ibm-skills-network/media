@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2025_10_22_183059) do
+ActiveRecord::Schema[8.1].define(version: 2025_11_25_194131) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -45,13 +45,20 @@ ActiveRecord::Schema[8.1].define(version: 2025_10_22_183059) do
   create_table "data_migrations", primary_key: "version", id: :string, force: :cascade do |t|
   end
 
-  create_table "videos_qualities", force: :cascade do |t|
+  create_table "videos", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "external_video_link"
-    t.integer "status", default: 0
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "videos_qualities_transcoding_processes", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "status", default: 0, null: false
     t.bigint "transcoding_profile_id", null: false
     t.datetime "updated_at", null: false
-    t.index ["transcoding_profile_id"], name: "index_videos_qualities_on_transcoding_profile_id"
+    t.bigint "video_id", null: false
+    t.index ["transcoding_profile_id"], name: "idx_on_transcoding_profile_id_efd6f16910"
+    t.index ["video_id"], name: "index_videos_qualities_transcoding_processes_on_video_id"
   end
 
   create_table "videos_qualities_transcoding_profiles", force: :cascade do |t|
@@ -67,5 +74,6 @@ ActiveRecord::Schema[8.1].define(version: 2025_10_22_183059) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
-  add_foreign_key "videos_qualities", "videos_qualities_transcoding_profiles", column: "transcoding_profile_id"
+  add_foreign_key "videos_qualities_transcoding_processes", "videos"
+  add_foreign_key "videos_qualities_transcoding_processes", "videos_qualities_transcoding_profiles", column: "transcoding_profile_id"
 end

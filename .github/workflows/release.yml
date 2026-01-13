@@ -33,8 +33,11 @@ jobs:
           # Get the latest stable release tag (exclude prereleases, must follow semver)
           CURRENT_TAG=${GITHUB_REF#refs/tags/}
           LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^${CURRENT_TAG}$" | head -n1)
+<<<<<<< HEAD
           echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
 
+=======
+>>>>>>> origin/main
           if [ -z "$LATEST_TAG" ]; then
             echo "No previous release found, will build"
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -47,6 +50,7 @@ jobs:
               echo "changed=false" >> $GITHUB_OUTPUT
               echo "Dockerfile unchanged since $LATEST_TAG, skipping build"
             fi
+<<<<<<< HEAD
           fi
 
           # Determine ffmpeg tag to use for new builds
@@ -59,6 +63,8 @@ jobs:
           else
             # Push to main or other: use sha-based tag
             echo "ffmpeg_tag=sha-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+=======
+>>>>>>> origin/main
           fi
 
   build-ffmpeg:
