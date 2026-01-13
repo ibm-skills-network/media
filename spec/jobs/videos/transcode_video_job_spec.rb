@@ -5,12 +5,12 @@ RSpec.describe Videos::TranscodeVideoJob, type: :job do
 
   let(:transcoding_profile) { create(:transcoding_profile, :p720) }
   let(:video) { create(:video, external_video_link: "https://example.com/video.mp4") }
-  let!(:transcoding_process) { create(:transcoding_process, video: video, transcoding_profile: transcoding_profile, status: :pending) }
+  let!(:transcoding_task) { create(:transcoding_task, video: video, transcoding_profile: transcoding_profile, status: :pending) }
 
   describe "#perform" do
-    context "when all transcoding processes are already successful" do
+    context "when all transcoding tasks are already successful" do
       it "returns early without processing" do
-        transcoding_process.success!
+        transcoding_task.success!
 
         expect(video).not_to receive(:transcode_video!)
 
@@ -18,9 +18,9 @@ RSpec.describe Videos::TranscodeVideoJob, type: :job do
       end
     end
 
-    context "when all transcoding processes are unavailable" do
+    context "when all transcoding tasks are unavailable" do
       it "returns early without processing" do
-        transcoding_process.unavailable!
+        transcoding_task.unavailable!
 
         expect(video).not_to receive(:transcode_video!)
 
@@ -28,7 +28,7 @@ RSpec.describe Videos::TranscodeVideoJob, type: :job do
       end
     end
 
-    context "when some transcoding processes are pending" do
+    context "when some transcoding tasks are pending" do
       it "calls transcode_video! on the video" do
         expect_any_instance_of(Video).to receive(:transcode_video!)
 
@@ -45,16 +45,16 @@ RSpec.describe Videos::TranscodeVideoJob, type: :job do
         end
       end
 
-      it "sets status to success for all transcoding processes" do
+      it "sets status to success for all transcoding tasks" do
         described_class.new.perform(video.id)
 
-        expect(transcoding_process.reload.status).to eq("success")
+        expect(transcoding_task.reload.status).to eq("success")
       end
 
       it "attaches the transcoded video files" do
         described_class.new.perform(video.id)
 
-        expect(transcoding_process.reload.video_file).to be_attached
+        expect(transcoding_task.reload.video_file).to be_attached
       end
     end
 
@@ -70,13 +70,13 @@ RSpec.describe Videos::TranscodeVideoJob, type: :job do
       end
     end
 
-    context "with multiple transcoding processes" do
+    context "with multiple transcoding tasks" do
       let(:transcoding_profile_1080) { create(:transcoding_profile, :p1080) }
-      let!(:transcoding_process_1080) { create(:transcoding_process, video: video, transcoding_profile: transcoding_profile_1080, status: :pending) }
+      let!(:transcoding_task_1080) { create(:transcoding_task, video: video, transcoding_profile: transcoding_profile_1080, status: :pending) }
 
       context "when some are already successful" do
         it "still processes the pending ones" do
-          transcoding_process.success!
+          transcoding_task.success!
 
           expect_any_instance_of(Video).to receive(:transcode_video!)
 
@@ -86,8 +86,8 @@ RSpec.describe Videos::TranscodeVideoJob, type: :job do
 
       context "when all are successful or unavailable" do
         it "returns early without processing" do
-          transcoding_process.success!
-          transcoding_process_1080.unavailable!
+          transcoding_task.success!
+          transcoding_task_1080.unavailable!
 
           expect(video).not_to receive(:transcode_video!)
 

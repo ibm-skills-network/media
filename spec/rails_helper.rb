@@ -32,6 +32,11 @@ rescue ActiveRecord::PendingMigrationError => e
   exit 1
 end
 RSpec.configure do |config|
+  # Set ActiveStorage URL options for tests
+  config.before(:each) do
+    ActiveStorage::Current.url_options = { host: "localhost", port: 3000 }
+  end
+
   # Remove this line if you're not using ActiveRecord or ActiveRecord fixtures
   config.fixture_paths = [ Rails.root.join("spec/fixtures") ]
 
