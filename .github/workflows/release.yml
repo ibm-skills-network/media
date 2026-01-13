@@ -21,19 +21,44 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.changed.outputs.changed }}
+      ffmpeg_tag: ${{ steps.changed.outputs.ffmpeg_tag }}
+      latest_tag: ${{ steps.changed.outputs.latest_tag }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      - name: Check if Dockerfile changed
+          fetch-depth: 0
+      - name: Check if Dockerfile changed since last release
         id: changed
         run: |
-          if git diff HEAD^ HEAD --name-only | grep -q "utils/ffmpeg/Dockerfile"; then
+          # Get the latest stable release tag (exclude prereleases, must follow semver)
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "^${CURRENT_TAG}$" | head -n1)
+          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
+
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No previous release found, will build"
             echo "changed=true" >> $GITHUB_OUTPUT
-            echo "Dockerfile changed, will build"
           else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Dockerfile unchanged, skipping build"
+            echo "Comparing against latest release: $LATEST_TAG"
+            if git diff "$LATEST_TAG" HEAD --name-only | grep -q "utils/ffmpeg/Dockerfile"; then
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "Dockerfile changed since $LATEST_TAG, will build"
+            else
+              echo "changed=false" >> $GITHUB_OUTPUT
+              echo "Dockerfile unchanged since $LATEST_TAG, skipping build"
+            fi
+          fi
+
+          # Determine ffmpeg tag to use for new builds
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            # Release build: use the git tag
+            echo "ffmpeg_tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            # PR build: use sha-based tag
+            echo "ffmpeg_tag=sha-${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
+          else
+            # Push to main or other: use sha-based tag
+            echo "ffmpeg_tag=sha-${GITHUB_SHA}" >> $GITHUB_OUTPUT
           fi
 
   build-ffmpeg:
@@ -46,6 +71,8 @@ jobs:
       docker_context: .
       docker_target: release
       maximize_free_space: true
+      # Use computed tag so PRs get sha-based tags
+      tag: ${{ needs.check-ffmpeg-changes.outputs.ffmpeg_tag }}
     secrets: inherit
 
   build-app:
@@ -56,4 +83,7 @@ jobs:
       image: icr.io/skills-network/media
       docker_context: .
       docker_target: release
+      # Pass ffmpeg tag as build arg; fallback to last release tag if ffmpeg wasn't rebuilt
+      build_args: |
+        FFMPEG_TAG=${{ needs.check-ffmpeg-changes.outputs.changed == 'true' && needs.check-ffmpeg-changes.outputs.ffmpeg_tag || needs.check-ffmpeg-changes.outputs.latest_tag }}
     secrets: inherit
