@@ -15,10 +15,14 @@ module Api
 
           def create
             if video_params[:video_file].present?
-              @video = Video.create!
+              @video = Video.new
               @video.video_file.attach(video_params[:video_file])
             else
-              @video = Video.create!(external_video_link: video_params[:external_video_link])
+              @video = Video.new(external_video_link: video_params[:external_video_link])
+            end
+
+            unless @video.save
+              render json: { error: @video.errors.full_messages.join(", ") }, status: :unprocessable_entity and return
             end
 
             transcoding_profile_labels = video_params[:transcoding_profile_labels]
