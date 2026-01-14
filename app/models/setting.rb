@@ -1,3 +1,3 @@
 class Setting
-  TRANSCODING_PROFILES = Videos::Quality::TranscodingProfile.all
+  TRANSCODING_PROFILES = Videos::TranscodingProfile.all
 end

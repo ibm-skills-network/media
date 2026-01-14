@@ -1,5 +1,5 @@
 FactoryBot.define do
-  factory :transcoding_profile, class: "Videos::Quality::TranscodingProfile" do
+  factory :transcoding_profile, class: "Videos::TranscodingProfile" do
     label { "720p" }
     width { 1280 }
     height { 720 }

@@ -36,7 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY Gemfile Gemfile.lock ./
 RUN bundle config set --local deployment 'true' \
     && bundle config set --local without 'development test' \
-    && bundle install --jobs="$(nproc --all)" --frozen --retry 3 -j4 \
+    && bundle config set frozen true \
+    && bundle install --jobs="$(nproc --all)" --retry 3 -j4 \
     && find /usr/local/lib/ruby/gems -name ".git" -type d -exec rm -rf {} + 2>/dev/null || true
 
 COPY bin ./bin
@@ -51,7 +52,7 @@ ENV SECRET_KEY_BASE=dummysecret
 
 # Stage 2: Production image - Use prebuilt FFmpeg image
 # NOTE: Must update tag if the FFmpeg image is updated in the utils/ffmpeg/Dockerfile
-FROM icr.io/skills-network/media/ffmpeg:0.2.3 AS release
+FROM icr.io/skills-network/media/ffmpeg:0.5.0 AS release
 USER root
 ENV APP_HOME /app
 ENV SECRET_KEY_BASE=dummysecret
@@ -75,8 +76,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy Ruby and all dependencies from builder
 COPY --from=builder /usr/local/bin/ruby /usr/local/bin/ruby
 COPY --from=builder /usr/local/bin/gem /usr/local/bin/gem
-COPY --from=builder /usr/local/bin/bundle /usr/local/bin/bundle
-COPY --from=builder /usr/local/bin/bundler /usr/local/bin/bundler
+COPY --from=builder /usr/local/bin/bundle* /usr/local/bin/
 COPY --from=builder /usr/local/lib/ruby /usr/local/lib/ruby
 COPY --from=builder /usr/local/lib/libruby.so* /usr/local/lib/
 COPY --from=builder /usr/local/include/ruby-3.4.0 /usr/local/include/ruby-3.4.0

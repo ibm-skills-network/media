@@ -22,7 +22,8 @@ Rails.application.routes.draw do
     namespace :v1, defaults: { format: :json } do
       namespace :async do
         namespace :videos do
-          resources :qualities, only: [ :create, :show ]
+          resources :transcoding_tasks, only: %w[ show create ]
+          resources :images_to_video_tasks, only: [ :create ]
         end
       end
     end
