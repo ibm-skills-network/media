@@ -38,8 +38,8 @@ RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :cont
       post :create, params: task_params
 
       json_response = JSON.parse(response.body)
-      expect(json_response["images_to_video_task"]).to include("id", "status")
-      expect(json_response["images_to_video_task"]["status"]).to eq("pending")
+      expect(json_response).to include("id", "status")
+      expect(json_response["status"]).to eq("pending")
     end
   end
 
