@@ -9,8 +9,8 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector:pg14
-        ports: ["5432:5432"]
+        image: pgvector/pgvector:pg16
+        ports: ["5437:5432"]
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
         env:
           CI: true
@@ -71,8 +71,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg14
-        ports: ["5432:5432"]
+        image: pgvector/pgvector:pg16
+        ports: ["5437:5432"]
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
         env:
           CI: true

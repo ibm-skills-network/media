@@ -30,7 +30,9 @@ A video transcoding service built with Rails that leverages NVIDIA CUDA hardware
 
    ```bash
    docker-compose up -d
-   bin/rails db:setup
+   bin/rails db:create
+   bin/rails db:prepare
+   bin/rails data:migrate
    ```
 
 4. **Start the application**

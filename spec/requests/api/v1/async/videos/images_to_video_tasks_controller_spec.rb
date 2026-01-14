@@ -13,9 +13,6 @@ RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :cont
       }
     end
 
-    before do
-      request.headers.merge!(auth_headers)
-    end
 
     it "creates an ImagesToVideoTask with pending status" do
       expect {
@@ -41,8 +38,22 @@ RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :cont
       post :create, params: task_params
 
       json_response = JSON.parse(response.body)
-      expect(json_response["images_to_video_task"]).to include("id", "status")
-      expect(json_response["images_to_video_task"]["status"]).to eq("pending")
+      expect(json_response).to include("id", "status")
+      expect(json_response["status"]).to eq("pending")
+    end
+  end
+
+  describe "GET #show" do
+    let(:task) { Videos::ImagesToVideoTask.create! }
+
+
+    it "returns the task" do
+      get :show, params: { id: task.id }
+
+      expect(response).to have_http_status(:ok)
+      json_response = JSON.parse(response.body)
+      expect(json_response["id"]).to eq(task.id)
+      expect(json_response["status"]).to eq(task.status)
     end
   end
 end
