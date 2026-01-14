@@ -3,16 +3,23 @@ module Api
     module Async
       module Videos
         class ImagesToVideoTasksController < ApiController
+          def show
+            @task = ::Videos::ImagesToVideoTask.find(params[:id])
+
+            render json: {
+              id: @task.id,
+              status: @task.status,
+              video_file_url: @task.video_file.url
+            }, status: :ok
+          end
           def create
             @task = ::Videos::ImagesToVideoTask.create!
 
             ::Videos::ImagesToVideoJob.perform_later(@task.id, task_params[:chunks].map(&:to_h))
 
             render json: {
-              images_to_video_task: {
                 id: @task.id,
                 status: @task.status
-              }
             }, status: :created
           end
 
