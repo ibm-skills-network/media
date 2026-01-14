@@ -3,15 +3,16 @@ module Api
     module Async
       module Videos
         class ImagesToVideoTasksController < ApiController
-          def show
-            @task = ::Videos::ImagesToVideoTask.find(params[:id])
+            before_action :set_task, only: %w[ show ]
 
+          def show
             render json: {
               id: @task.id,
               status: @task.status,
               video_file_url: @task.video_file.url
             }, status: :ok
           end
+
           def create
             @task = ::Videos::ImagesToVideoTask.create!
 
@@ -24,6 +25,10 @@ module Api
           end
 
           private
+
+          def set_task
+            @task = ::Videos::ImagesToVideoTask.find(params[:id])
+          end
 
           def task_params
             params.permit(chunks: [ :image_url, :audio_url ])
