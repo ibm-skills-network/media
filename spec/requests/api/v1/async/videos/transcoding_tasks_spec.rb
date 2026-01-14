@@ -9,10 +9,6 @@ RSpec.describe Api::V1::Async::Videos::TranscodingTasksController, type: :contro
     let(:video) { create(:video, external_video_link: "https://example.com/video.mp4") }
     let(:transcoding_task) { create(:transcoding_task, video: video, transcoding_profile: transcoding_profile) }
 
-    before do
-      request.headers.merge!(auth_headers)
-    end
-
     it "returns success status" do
       get :show, params: { id: transcoding_task.id }
 
@@ -44,10 +40,6 @@ RSpec.describe Api::V1::Async::Videos::TranscodingTasksController, type: :contro
         external_video_link: "https://example.com/video.mp4",
         transcoding_profile_labels: [ transcoding_profile.label ]
       }
-    end
-
-    before do
-      request.headers.merge!(auth_headers)
     end
 
     it "creates a video" do
