@@ -9,14 +9,14 @@ jobs:
 
     services:
       postgres:
-        image: pgvector/pgvector:pg14
-        ports: ["5432:5432"]
+        image: pgvector/pgvector:pg16
+        ports: ["5437:5432"]
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
         env:
           CI: true
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: author_workbench_test
+          POSTGRES_DB: media_test
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]
@@ -71,14 +71,14 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg14
-        ports: ["5432:5432"]
+        image: pgvector/pgvector:pg16
+        ports: ["5437:5432"]
         options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
         env:
           CI: true
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: author_workbench_test
+          POSTGRES_DB: media_test
       redis:
         image: redis:7-alpine
         ports: ["6379:6379"]

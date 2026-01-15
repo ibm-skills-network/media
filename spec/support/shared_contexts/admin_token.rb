@@ -3,4 +3,8 @@ RSpec.shared_context "admin" do
     token = JWT.encode({ admin: true }, Settings.jwt_secret, "HS256")
     { "Authorization" => "Bearer #{token}" }
   end
+
+  before do
+    request.headers.merge!(auth_headers)
+  end
 end

@@ -18,14 +18,29 @@ RSpec.shared_context "ffmpeg video api" do
       }
     end
 
+    # Stub Ffmpeg::Video.video_metadata_from_url
+    allow(Ffmpeg::Video).to receive(:video_metadata_from_url) do |url|
+      {
+        "streams" => [
+          {
+            "codec_type" => "video",
+            "width" => 1280,
+            "height" => 720,
+            "bit_rate" => "2500000"
+          }
+        ],
+        "format" => {
+          "filename" => url,
+          "duration" => "60.0"
+        }
+      }
+    end
+
     # Stub Ffmpeg::Video.mime_type
     allow(Ffmpeg::Video).to receive(:mime_type).and_return("video/mp4")
 
     # Stub Ffmpeg::Video.cuda_supported?
     allow(Ffmpeg::Video).to receive(:cuda_supported?).and_return({ cuda_supported: true })
-
-    # Stub Ffmpeg::Video.encode_video
-    allow(Ffmpeg::Video).to receive(:encode_video).and_return({ success: true, output_file: "/path/to/output.mp4" })
 
     # Stub Faraday.head for mime type checking
     allow(Faraday).to receive(:head) do |url|
