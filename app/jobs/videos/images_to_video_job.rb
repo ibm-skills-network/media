@@ -5,7 +5,7 @@ module Videos
 
     sidekiq_retries_exhausted do |msg, exception|
       Rails.logger.error("Failed #{msg['class']} with #{msg['args']}: #{exception.message}")
-      task = ImagesToVideoTask.find_by(id: msg["args"].first)
+      task = ImagesToVideoTask.find_by(id: msg["args"].first["arguments"].first)
       task&.failed!
     end
 
