@@ -16,10 +16,7 @@ module Api
           def create
             @task = ::Videos::ImagesToVideoTask.create!
 
-            width = task_params[:width]&.to_i || 1280
-            height = task_params[:height]&.to_i || 720
-
-            ::Videos::ImagesToVideoJob.perform_later(@task.id, task_params[:chunks].map(&:to_h), width, height)
+            ::Videos::ImagesToVideoJob.perform_later(@task.id, task_params[:chunks].map(&:to_h), task_params[:width].to_i, task_params[:height].to_i)
 
             render json: {
                 id: @task.id,
