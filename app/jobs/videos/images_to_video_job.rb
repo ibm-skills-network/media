@@ -9,7 +9,7 @@ module Videos
       task&.failed!
     end
 
-    def perform(task_id, chunks)
+    def perform(task_id, chunks, width = 1280, height = 720)
       task = ImagesToVideoTask.find(task_id)
       task.processing!
       temp_files = []
@@ -86,10 +86,10 @@ module Videos
         # Build filter_complex
         filter_parts = []
 
-        # Scale and trim each video
+        # Scale and letterbox each video to target dimensions
         chunks.length.times do |i|
           video_input = i * 2
-          filter_parts << "[#{video_input}:v]scale=1280:720,setsar=1,trim=duration=#{audio_durations[i]}[v#{i}]"
+          filter_parts << "[#{video_input}:v]scale=w=#{width}:h=#{height}:force_original_aspect_ratio=decrease,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,trim=duration=#{audio_durations[i]}[v#{i}]"
         end
 
         # Build concat inputs
