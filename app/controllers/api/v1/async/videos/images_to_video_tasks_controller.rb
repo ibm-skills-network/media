@@ -16,7 +16,7 @@ module Api
           def create
             @task = ::Videos::ImagesToVideoTask.create!
 
-            ::Videos::ImagesToVideoJob.perform_later(@task.id, task_params[:chunks].map(&:to_h))
+            ::Videos::ImagesToVideoJob.perform_later(@task.id, task_params[:chunks].map(&:to_h), task_params[:width].to_i, task_params[:height].to_i)
 
             render json: {
                 id: @task.id,
@@ -31,7 +31,7 @@ module Api
           end
 
           def task_params
-            params.permit(chunks: [ :image_url, :audio_url ])
+            params.permit(:width, :height, chunks: [ :image_url, :audio_url ])
           end
         end
       end
