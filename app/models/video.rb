@@ -63,14 +63,22 @@ class Video < ApplicationRecord
       ]
     end
 
+    # Track ffmpeg execution time
+    ffmpeg_start = Time.now
     _stdout, stderr, status = Open3.capture3(*command)
+    ffmpeg_duration = Time.now - ffmpeg_start
+    Rails.logger.info("[Video#transcode_video!] FFmpeg command took #{ffmpeg_duration.round(2)}s")
 
     if status.success?
       temp_outputs.each do |transcoding_task, temp_file|
         if File.exist?(temp_file.path) && File.size(temp_file.path) > 0
+          # Track upload time for each transcoded video
+          upload_start = Time.now
           File.open(temp_file.path, "rb") do |file|
             transcoding_task.video_file.attach(io: file, filename: "transcoded_#{transcoding_task.id}_output.mp4")
           end
+          upload_duration = Time.now - upload_start
+          Rails.logger.info("[Video#transcode_video!] Upload for task #{transcoding_task.id} took #{upload_duration.round(2)}s")
           transcoding_task.success!
         else
           transcoding_task.failed!
