@@ -27,7 +27,8 @@ class Video < ApplicationRecord
     response = Faraday.get(video_source_url)
     download_duration = Time.now - download_start
     download_size_mb = response.body.bytesize / 1_000_000.0
-    Rails.logger.info("[Video#transcode_video!] Download benchmark: #{download_size_mb.round(2)}MB in #{download_duration.round(2)}s (#{(download_size_mb / download_duration).round(2)} MB/s)")
+    download_speed = download_duration > 0 ? (download_size_mb / download_duration).round(2) : "N/A"
+    Rails.logger.info("[Video#transcode_video!] Download benchmark: #{download_size_mb.round(2)}MB in #{download_duration.round(2)}s (#{download_speed} MB/s)")
 
     command = [
       "ffmpeg",
