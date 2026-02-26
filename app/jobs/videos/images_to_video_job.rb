@@ -1,6 +1,6 @@
 module Videos
   class ImagesToVideoJob < ApplicationJob
-    queue_as :gpu
+    queue_as :critical
     MAX_THREADS = 5
 
     sidekiq_retries_exhausted do |msg, exception|
@@ -100,16 +100,20 @@ module Videos
         filter_parts << "#{v_concat}concat=n=#{chunks.length}:v=1:a=0[v]"
         filter_parts << "#{a_concat}concat=n=#{chunks.length}:v=0:a=1[a]"
 
-        output_file = Tempfile.new([ "output", ".mp4" ])
+        output_file = Tempfile.new([ "output", ".webm" ])
         output_file.close
 
         command += [
           "-filter_complex", filter_parts.join("; "),
           "-map", "[v]",
           "-map", "[a]",
-          "-c:v", "av1_nvenc",
+          "-c:v", "libvpx-vp9",
+          "-b:v", "0",
+          "-crf", "33",
+          "-cpu-used", "4",
+          "-row-mt", "1",
           "-pix_fmt", "yuv420p",
-          "-c:a", "aac",
+          "-c:a", "libopus",
           "-y",
           output_file.path
         ]
@@ -121,7 +125,7 @@ module Videos
         end
 
         File.open(output_file.path, "rb") do |file|
-          task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.mp4")
+          task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.webm")
         end
         task.success!
       rescue => e
