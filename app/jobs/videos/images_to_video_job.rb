@@ -127,7 +127,7 @@ module Videos
         File.open(output_file.path, "rb") do |file|
           task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.webm")
         end
-        task.update!(completion_time: Time.current - started_at)
+        task.update!(completion_time: (Time.current - started_at).to_i)
         task.success!
       rescue => e
         task.pending!
