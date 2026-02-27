@@ -22,14 +22,6 @@ class Video < ApplicationRecord
 
     processes_to_transcode.each(&:processing!)
 
-    # Benchmark download speed (discards the data, just for timing)
-    download_start = Time.now
-    response = Faraday.get(video_source_url)
-    download_duration = Time.now - download_start
-    download_size_mb = response.body.bytesize / 1_000_000.0
-    download_speed = download_duration > 0 ? (download_size_mb / download_duration).round(2) : "N/A"
-    Rails.logger.info("[Video#transcode_video!] Download benchmark: #{download_size_mb.round(2)}MB in #{download_duration.round(2)}s (#{download_speed} MB/s)")
-
     command = [
       "ffmpeg",
       "-y",
@@ -71,22 +63,14 @@ class Video < ApplicationRecord
       ]
     end
 
-    # Track ffmpeg execution time
-    ffmpeg_start = Time.now
     _stdout, stderr, status = Open3.capture3(*command)
-    ffmpeg_duration = Time.now - ffmpeg_start
-    Rails.logger.info("[Video#transcode_video!] FFmpeg command took #{ffmpeg_duration.round(2)}s")
 
     if status.success?
       temp_outputs.each do |transcoding_task, temp_file|
         if File.exist?(temp_file.path) && File.size(temp_file.path) > 0
-          # Track upload time for each transcoded video
-          upload_start = Time.now
           File.open(temp_file.path, "rb") do |file|
             transcoding_task.video_file.attach(io: file, filename: "transcoded_#{transcoding_task.id}_output.mp4")
           end
-          upload_duration = Time.now - upload_start
-          Rails.logger.info("[Video#transcode_video!] Upload for task #{transcoding_task.id} took #{upload_duration.round(2)}s")
           transcoding_task.success!
         else
           transcoding_task.failed!
