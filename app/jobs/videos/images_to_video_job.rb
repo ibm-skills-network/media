@@ -1,6 +1,6 @@
 module Videos
   class ImagesToVideoJob < ApplicationJob
-    queue_as :gpu
+    queue_as :critical
     MAX_THREADS = 5
 
     sidekiq_retries_exhausted do |msg, exception|
