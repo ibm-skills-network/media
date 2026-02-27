@@ -22,12 +22,78 @@ class Video < ApplicationRecord
 
     processes_to_transcode.each(&:processing!)
 
-    command = [
+    # Download video to tempfile and benchmark download speed
+    download_start = Time.now
+    response = Faraday.get(video_source_url)
+    download_duration = Time.now - download_start
+    download_size_mb = response.body.bytesize / 1_000_000.0
+    download_speed = download_duration > 0 ? (download_size_mb / download_duration).round(2) : "N/A"
+    Rails.logger.info("[Video#transcode_video!] Download benchmark: #{download_size_mb.round(2)}MB in #{download_duration.round(2)}s (#{download_speed} MB/s)")
+
+    # Write downloaded video to tempfile
+    input_tempfile = Tempfile.new([ "input_video", ".mp4" ])
+    input_tempfile.binmode
+    input_tempfile.write(response.body)
+    input_tempfile.flush
+    input_tempfile.close
+    Rails.logger.info("[Video#transcode_video!] Video written to tempfile: #{input_tempfile.path}")
+
+    # === BENCHMARK 1: FFmpeg with URL ===
+    Rails.logger.info("[Video#transcode_video!] === BENCHMARK 1: FFmpeg with URL ===")
+
+    command_url = [
       "ffmpeg",
       "-y",
       "-hwaccel", "cuda",
       "-hwaccel_output_format", "cuda",
       "-i", video_source_url
+    ]
+
+    temp_outputs_url = {}
+    filter_complex_url = []
+
+    processes_to_transcode.each_with_index do |transcoding_task, index|
+      temp_file = Tempfile.new([ "#{transcoding_task.id}_url_output", ".mp4" ])
+      temp_file.close
+      temp_outputs_url[transcoding_task] = temp_file
+
+      filter_complex_url << "[0:v]scale_cuda=min(#{transcoding_task.transcoding_profile.width}\\,iw):min(#{transcoding_task.transcoding_profile.height}\\,ih)[v#{index}]"
+    end
+
+    command_url += [ "-filter_complex", filter_complex_url.join(";") ]
+
+    processes_to_transcode.each_with_index do |transcoding_task, index|
+      temp_file = temp_outputs_url[transcoding_task]
+      command_url += [
+        "-map", "[v#{index}]",
+        "-map", "0:a?",
+        "-c:v", transcoding_task.transcoding_profile.codec,
+        "-b:v", transcoding_task.transcoding_profile.bitrate_string,
+        "-preset", "p4",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-ac", "2",
+        temp_file.path
+      ]
+    end
+
+    ffmpeg_url_start = Time.now
+    _stdout, _stderr, _status = Open3.capture3(*command_url)
+    ffmpeg_url_duration = Time.now - ffmpeg_url_start
+    Rails.logger.info("[Video#transcode_video!] FFmpeg with URL took #{ffmpeg_url_duration.round(2)}s")
+
+    # Clean up URL benchmark outputs
+    temp_outputs_url.each_value(&:unlink)
+
+    # === BENCHMARK 2: FFmpeg with tempfile ===
+    Rails.logger.info("[Video#transcode_video!] === BENCHMARK 2: FFmpeg with tempfile ===")
+
+    command = [
+      "ffmpeg",
+      "-y",
+      "-hwaccel", "cuda",
+      "-hwaccel_output_format", "cuda",
+      "-i", input_tempfile.path
     ]
 
     temp_outputs = {}
@@ -63,14 +129,27 @@ class Video < ApplicationRecord
       ]
     end
 
+    # Track ffmpeg execution time
+    ffmpeg_start = Time.now
     _stdout, stderr, status = Open3.capture3(*command)
+    ffmpeg_duration = Time.now - ffmpeg_start
+    Rails.logger.info("[Video#transcode_video!] FFmpeg with tempfile took #{ffmpeg_duration.round(2)}s")
+
+    # Log comparison
+    difference = (ffmpeg_url_duration - ffmpeg_duration).round(2)
+    percentage = ffmpeg_url_duration > 0 ? ((difference / ffmpeg_url_duration) * 100).round(1) : 0
+    Rails.logger.info("[Video#transcode_video!] === COMPARISON: Tempfile was #{difference}s faster (#{percentage}% improvement) ===")
 
     if status.success?
       temp_outputs.each do |transcoding_task, temp_file|
         if File.exist?(temp_file.path) && File.size(temp_file.path) > 0
+          # Track upload time for each transcoded video
+          upload_start = Time.now
           File.open(temp_file.path, "rb") do |file|
             transcoding_task.video_file.attach(io: file, filename: "transcoded_#{transcoding_task.id}_output.mp4")
           end
+          upload_duration = Time.now - upload_start
+          Rails.logger.info("[Video#transcode_video!] Upload for task #{transcoding_task.id} took #{upload_duration.round(2)}s")
           transcoding_task.success!
         else
           transcoding_task.failed!
@@ -83,6 +162,7 @@ class Video < ApplicationRecord
 
   ensure
     temp_outputs&.each_value(&:unlink)
+    input_tempfile&.unlink
   end
 
   def max_quality_label
