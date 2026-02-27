@@ -12,6 +12,7 @@ module Videos
     def perform(task_id, chunks, width = 1280, height = 720)
       task = ImagesToVideoTask.find(task_id)
       task.processing!
+      started_at = Time.current
       temp_files = []
       output_file = nil
 
@@ -123,6 +124,7 @@ module Videos
         File.open(output_file.path, "rb") do |file|
           task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.webm")
         end
+        task.update!(completion_time: Time.current - started_at)
         task.success!
       rescue => e
         task.pending!
