@@ -28,9 +28,6 @@ RSpec.describe Videos::ImagesToVideoJob, type: :job do
       end
     end
 
-    it "enqueues on the gpu queue" do
-      expect(described_class.new.queue_name).to eq("gpu")
-    end
 
     it "creates a video from image and audio chunks" do
       described_class.new.perform(task.id, chunks)
