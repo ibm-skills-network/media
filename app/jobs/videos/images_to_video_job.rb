@@ -1,6 +1,6 @@
 module Videos
   class ImagesToVideoJob < ApplicationJob
-    queue_as :gpu
+    queue_as :critical
     MAX_THREADS = 5
 
     sidekiq_retries_exhausted do |msg, exception|
@@ -12,6 +12,7 @@ module Videos
     def perform(task_id, chunks, width = 1280, height = 720)
       task = ImagesToVideoTask.find(task_id)
       task.processing!
+      started_at = Time.current
       temp_files = []
       output_file = nil
 
@@ -79,7 +80,7 @@ module Videos
 
         # Add all inputs with -loop and -t duration
         chunks.length.times do |i|
-          command += [ "-loop", "1", "-t", audio_durations[i], "-i", image_files[i].path ]
+          command += [ "-loop", "1", "-r", "1", "-t", audio_durations[i], "-i", image_files[i].path ]
           command += [ "-i", audio_files[i].path ]
         end
 
@@ -89,7 +90,7 @@ module Videos
         # Scale and letterbox each video to target dimensions
         chunks.length.times do |i|
           video_input = i * 2
-          filter_parts << "[#{video_input}:v]scale=w=#{width}:h=#{height}:force_original_aspect_ratio=decrease,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,trim=duration=#{audio_durations[i]}[v#{i}]"
+          filter_parts << "[#{video_input}:v]scale=w=#{width}:h=#{height}:force_original_aspect_ratio=decrease,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v#{i}]"
         end
 
         # Build concat inputs
@@ -100,16 +101,19 @@ module Videos
         filter_parts << "#{v_concat}concat=n=#{chunks.length}:v=1:a=0[v]"
         filter_parts << "#{a_concat}concat=n=#{chunks.length}:v=0:a=1[a]"
 
-        output_file = Tempfile.new([ "output", ".mp4" ])
+        output_file = Tempfile.new([ "output", ".webm" ])
         output_file.close
 
         command += [
           "-filter_complex", filter_parts.join("; "),
           "-map", "[v]",
           "-map", "[a]",
-          "-c:v", "av1_nvenc",
+          "-c:v", "libvpx-vp9",
+          "-cpu-used", "8",
+          "-deadline", "realtime",
+          "-row-mt", "1",
           "-pix_fmt", "yuv420p",
-          "-c:a", "aac",
+          "-c:a", "libopus",
           "-y",
           output_file.path
         ]
@@ -121,8 +125,9 @@ module Videos
         end
 
         File.open(output_file.path, "rb") do |file|
-          task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.mp4")
+          task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.webm")
         end
+        task.update!(completion_time: (Time.current - started_at).to_i)
         task.success!
       rescue => e
         task.pending!

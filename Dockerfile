@@ -52,7 +52,7 @@ ENV SECRET_KEY_BASE=dummysecret
 
 # Stage 2: Production image - Use prebuilt FFmpeg image
 # NOTE: Must update tag if the FFmpeg image is updated in the utils/ffmpeg/Dockerfile
-FROM icr.io/skills-network/media/ffmpeg:0.5.0 AS release
+FROM icr.io/skills-network/media/ffmpeg:0.5.6 AS release
 USER root
 ENV APP_HOME /app
 ENV SECRET_KEY_BASE=dummysecret

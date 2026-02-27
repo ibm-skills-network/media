@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libnuma-dev \
     libssl-dev \
     libx264-dev \
+    libvpx-dev \
+    libopus-dev \
     libpng-dev \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -46,6 +48,8 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
         --enable-cuvid \
         --enable-nvenc \
         --enable-libx264 \
+        --enable-libvpx \
+        --enable-libopus \
         --enable-nvdec \
         --enable-libnpp \
         --enable-openssl \
@@ -74,6 +78,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
     libx264-163 \
+    libvpx7 \
+    libopus0 \
     libpng16-16 \
     zlib1g \
     && rm -rf /var/lib/apt/lists/*
