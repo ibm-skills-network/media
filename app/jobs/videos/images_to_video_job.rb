@@ -80,7 +80,7 @@ module Videos
 
         # Add all inputs with -loop and -t duration
         chunks.length.times do |i|
-          command += [ "-loop", "1", "-t", audio_durations[i], "-i", image_files[i].path ]
+          command += [ "-loop", "1", "-r", "1", "-t", audio_durations[i], "-i", image_files[i].path ]
           command += [ "-i", audio_files[i].path ]
         end
 
@@ -90,7 +90,7 @@ module Videos
         # Scale and letterbox each video to target dimensions
         chunks.length.times do |i|
           video_input = i * 2
-          filter_parts << "[#{video_input}:v]scale=w=#{width}:h=#{height}:force_original_aspect_ratio=decrease,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2,setsar=1,trim=duration=#{audio_durations[i]}[v#{i}]"
+          filter_parts << "[#{video_input}:v]scale=w=#{width}:h=#{height}:force_original_aspect_ratio=decrease,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v#{i}]"
         end
 
         # Build concat inputs
@@ -109,6 +109,9 @@ module Videos
           "-map", "[v]",
           "-map", "[a]",
           "-c:v", "libvpx-vp9",
+          "-cpu-used", "8",
+          "-deadline", "realtime",
+          "-row-mt", "1",
           "-pix_fmt", "yuv420p",
           "-c:a", "libopus",
           "-y",
