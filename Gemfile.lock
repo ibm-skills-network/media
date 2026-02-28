@@ -154,7 +154,7 @@ GEM
       activesupport (>= 6.1)
     i18n (1.14.8)
       concurrent-ruby (~> 1.0)
-    instana (2.4.0)
+    instana (2.5.0)
       base64 (>= 0.1)
       cgi
       concurrent-ruby (>= 1.1)
@@ -220,7 +220,7 @@ GEM
       racc (~> 1.4)
     nokogiri (1.19.1-x86_64-linux-musl)
       racc (~> 1.4)
-    oj (3.16.13)
+    oj (3.16.15)
       bigdecimal (>= 3.0)
       ostruct (>= 0.2)
     opentelemetry-api (1.7.0)
