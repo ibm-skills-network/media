@@ -14,9 +14,10 @@ module Api
           end
 
           def create
-            @task = ::Videos::ImagesToVideoTask.create!
+            profile = ::Videos::ImagesToVideoProfile.find_by!(label: task_params[:profile_label])
+            @task = ::Videos::ImagesToVideoTask.create!(images_to_video_profile: profile)
 
-            ::Videos::ImagesToVideoJob.perform_later(@task.id, task_params[:chunks].map(&:to_h), task_params[:width].to_i, task_params[:height].to_i)
+            ::Videos::ImagesToVideoJob.perform_later(@task.id, task_params[:chunks].map(&:to_h), profile.id, task_params[:width].to_i, task_params[:height].to_i)
 
             render json: {
                 id: @task.id,
@@ -31,7 +32,7 @@ module Api
           end
 
           def task_params
-            params.permit(:width, :height, chunks: [ :image_url, :audio_url ])
+            params.permit(:profile_label, :width, :height, chunks: [ :image_url, :audio_url ])
           end
         end
       end

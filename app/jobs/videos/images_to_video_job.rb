@@ -1,6 +1,6 @@
 module Videos
   class ImagesToVideoJob < ApplicationJob
-    queue_as :critical
+    queue_as :gpu
     MAX_THREADS = 5
 
     sidekiq_retries_exhausted do |msg, exception|
@@ -9,8 +9,9 @@ module Videos
       task&.failed!
     end
 
-    def perform(task_id, chunks, width = 1280, height = 720)
+    def perform(task_id, chunks, profile_id, width, height)
       task = ImagesToVideoTask.find(task_id)
+      profile = ImagesToVideoProfile.find(profile_id)
       task.processing!
       started_at = Time.current
       temp_files = []
@@ -101,19 +102,17 @@ module Videos
         filter_parts << "#{v_concat}concat=n=#{chunks.length}:v=1:a=0[v]"
         filter_parts << "#{a_concat}concat=n=#{chunks.length}:v=0:a=1[a]"
 
-        output_file = Tempfile.new([ "output", ".webm" ])
+        output_file = Tempfile.new([ "output", ".#{profile.container}" ])
         output_file.close
 
         command += [
           "-filter_complex", filter_parts.join("; "),
           "-map", "[v]",
           "-map", "[a]",
-          "-c:v", "libvpx-vp9",
-          "-cpu-used", "8",
-          "-deadline", "realtime",
-          "-row-mt", "1",
+          "-c:v", profile.codec,
           "-pix_fmt", "yuv420p",
-          "-c:a", "libopus",
+          *profile.extra_video_options,
+          "-c:a", profile.audio_codec,
           "-y",
           output_file.path
         ]
@@ -125,9 +124,9 @@ module Videos
         end
 
         File.open(output_file.path, "rb") do |file|
-          task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.webm")
+          task.video_file.attach(io: file, filename: "images_to_video_#{task.id}.#{profile.container}")
         end
-        task.update!(completion_time: (Time.current - started_at).to_i)
+        task.update!(completion_time: (Time.current - started_at))
         task.success!
       rescue => e
         task.pending!
