@@ -9,5 +9,9 @@ class CreateImagesToVideoProfiles < ActiveRecord::Migration[8.1]
 
       t.timestamps
     end
+
+    add_reference :images_to_video_tasks, :images_to_video_profile,
+      foreign_key: { to_table: :videos_images_to_video_profiles },
+      null: true
   end
 end
