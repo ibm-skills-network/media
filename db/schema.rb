@@ -66,6 +66,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_03_000001) do
     t.string "container", null: false
     t.datetime "created_at", null: false
     t.jsonb "extra_video_options", default: [], null: false
+    t.boolean "gpu", default: false, null: false
     t.integer "label", null: false
     t.datetime "updated_at", null: false
   end

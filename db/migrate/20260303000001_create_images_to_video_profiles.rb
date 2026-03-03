@@ -6,6 +6,7 @@ class CreateImagesToVideoProfiles < ActiveRecord::Migration[8.1]
       t.string  :audio_codec,  null: false
       t.string  :container,    null: false
       t.jsonb   :extra_video_options, null: false, default: []
+      t.boolean :gpu, null: false, default: false
 
       t.timestamps
     end

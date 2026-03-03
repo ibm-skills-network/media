@@ -5,6 +5,7 @@ FactoryBot.define do
     audio_codec { "libopus" }
     container { "webm" }
     extra_video_options { [ "-cpu-used", "8", "-deadline", "realtime", "-row-mt", "1" ] }
+    gpu { false }
 
     trait :av1_nvenc do
       label { "av1_nvenc" }
@@ -12,6 +13,7 @@ FactoryBot.define do
       audio_codec { "aac" }
       container { "mp4" }
       extra_video_options { [] }
+      gpu { true }
     end
   end
 end
