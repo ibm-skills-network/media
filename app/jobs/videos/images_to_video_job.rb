@@ -91,7 +91,7 @@ module Videos
         # Scale and letterbox each video to target dimensions
         chunks.length.times do |i|
           video_input = i * 2
-          filter_parts << "[#{video_input}:v]scale=w=#{width}:h=#{height}:force_original_aspect_ratio=decrease,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v#{i}]"
+          filter_parts << "[#{video_input}:v]scale=w=#{width}:h=#{height}:force_original_aspect_ratio=decrease:force_divisible_by=2,pad=#{width}:#{height}:(ow-iw)/2:(oh-ih)/2,setsar=1[v#{i}]"
         end
 
         # Build concat inputs

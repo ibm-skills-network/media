@@ -14,7 +14,11 @@ module Api
           end
 
           def create
-            profile = ::Videos::ImagesToVideoProfile.find_by!(label: task_params[:profile_label])
+            profile = if task_params[:profile_label]
+              ::Videos::ImagesToVideoProfile.find_by!(label: task_params[:profile_label])
+            else
+              ::Videos::ImagesToVideoProfile.find(Setting::DEFAULT_IMAGE_TO_TASK_PROFILE_ID)
+            end
             @task = ::Videos::ImagesToVideoTask.create!(images_to_video_profile: profile)
 
             queue = profile.gpu? ? :gpu : :critical
