@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install NVIDIA codec headers
-RUN git clone https://git.videolan.org/git/ffmpeg/nv-codec-headers.git /tmp/nv-codec-headers && \
+RUN git clone https://code.ffmpeg.org/FFmpeg/nv-codec-headers /tmp/nv-codec-headers && \
     cd /tmp/nv-codec-headers && \
     make install PREFIX=/usr && \
     cd - && \
