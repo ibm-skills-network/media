@@ -1,0 +1,18 @@
+class CreateImagesToVideoProfiles < ActiveRecord::Migration[8.1]
+  def change
+    create_table :videos_images_to_video_profiles do |t|
+      t.integer :label,        null: false
+      t.string  :codec,        null: false
+      t.string  :audio_codec,  null: false
+      t.string  :container,    null: false
+      t.jsonb   :extra_video_options, null: false, default: []
+      t.boolean :gpu, null: false, default: false
+
+      t.timestamps
+    end
+
+    add_reference :images_to_video_tasks, :images_to_video_profile,
+      foreign_key: { to_table: :videos_images_to_video_profiles },
+      null: true
+  end
+end

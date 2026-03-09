@@ -4,8 +4,12 @@ RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :cont
   include_context "admin"
 
   describe "POST #create" do
+    let(:profile) { create(:images_to_video_profile) }
     let(:task_params) do
       {
+        profile_label: profile.label,
+        width: 1280,
+        height: 720,
         chunks: [
           { image_url: "https://example.com/image1.png", audio_url: "https://example.com/audio1.mp3" },
           { image_url: "https://example.com/image2.png", audio_url: "https://example.com/audio2.mp3" }
@@ -44,7 +48,7 @@ RSpec.describe Api::V1::Async::Videos::ImagesToVideoTasksController, type: :cont
   end
 
   describe "GET #show" do
-    let(:task) { Videos::ImagesToVideoTask.create! }
+    let(:task) { create(:images_to_video_task) }
 
 
     it "returns the task" do

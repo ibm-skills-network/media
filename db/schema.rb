@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_01_06_211915) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_03_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -46,14 +46,28 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_06_211915) do
   end
 
   create_table "images_to_video_tasks", force: :cascade do |t|
+    t.interval "completion_time"
     t.datetime "created_at", null: false
+    t.bigint "images_to_video_profile_id"
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
+    t.index ["images_to_video_profile_id"], name: "index_images_to_video_tasks_on_images_to_video_profile_id"
   end
 
   create_table "videos", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "external_video_link"
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "videos_images_to_video_profiles", force: :cascade do |t|
+    t.string "audio_codec", null: false
+    t.string "codec", null: false
+    t.string "container", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "extra_video_options", default: [], null: false
+    t.boolean "gpu", default: false, null: false
+    t.integer "label", null: false
     t.datetime "updated_at", null: false
   end
 
@@ -80,6 +94,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_01_06_211915) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "images_to_video_tasks", "videos_images_to_video_profiles", column: "images_to_video_profile_id"
   add_foreign_key "videos_qualities_transcoding_processes", "videos"
   add_foreign_key "videos_qualities_transcoding_processes", "videos_qualities_transcoding_profiles", column: "transcoding_profile_id"
 end
