@@ -28,6 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libopus-dev \
     libpng-dev \
     zlib1g-dev \
+    libopenh264-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install NVIDIA codec headers
@@ -50,6 +51,7 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
         --enable-libx264 \
         --enable-libvpx \
         --enable-libopus \
+        --enable-libopenh264 \
         --enable-nvdec \
         --enable-libnpp \
         --enable-openssl \
@@ -80,6 +82,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libx264-163 \
     libvpx7 \
     libopus0 \
+    libopenh264-6 \
     libpng16-16 \
     zlib1g \
     && rm -rf /var/lib/apt/lists/*
