@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libopus-dev \
     libpng-dev \
     zlib1g-dev \
-    libopenh264-dev \
+    libopenh264-8 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install NVIDIA codec headers
@@ -82,7 +82,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libx264-163 \
     libvpx7 \
     libopus0 \
-    libopenh264-6 \
+    libopenh264-8 \
     libpng16-16 \
     zlib1g \
     && rm -rf /var/lib/apt/lists/*
