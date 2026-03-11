@@ -19,10 +19,10 @@ module Api
             else
               ::Videos::ImagesToVideoProfile.find_by!(codec: Setting::DEFAULT_IMAGE_TO_TASK_PROFILE_CODEC)
             end
-            @task = ::Videos::ImagesToVideoTask.create!(profile: profile)
+            @task = ::Videos::ImagesToVideoTask.create!(images_to_video_profile: profile)
 
             queue = profile.gpu? ? :gpu : :critical
-            ::Videos::ImagesToVideoJob.set(queue: queue).perform_later(@task.id, task_params[:chunks].map(&:to_h), profile.codec, task_params[:width].to_i, task_params[:height].to_i)
+            ::Videos::ImagesToVideoJob.set(queue: queue).perform_later(@task.id, task_params[:chunks].map(&:to_h), task_params[:width].to_i, task_params[:height].to_i)
 
             render json: {
                 id: @task.id,

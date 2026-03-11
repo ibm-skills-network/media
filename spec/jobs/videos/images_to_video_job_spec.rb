@@ -1,10 +1,7 @@
 require "rails_helper"
 
 RSpec.describe Videos::ImagesToVideoJob, type: :job do
-  include_context "ffmpeg video api"
-
   let(:task) { create(:images_to_video_task, status: "pending") }
-  let(:profile) { task.images_to_video_profile }
   let(:chunks) do
     [
       { "image_url" => "https://example.com/image1.png", "audio_url" => "https://example.com/audio1.mp3" },
@@ -27,17 +24,22 @@ RSpec.describe Videos::ImagesToVideoJob, type: :job do
       end
     end
 
-
     it "creates a video from image and audio chunks" do
-      described_class.new.perform(task.id, chunks, profile.id, 1280, 720)
+      described_class.new.perform(task.id, chunks, 1280, 720)
 
       expect(task.reload.video_file).to be_attached
     end
 
     it "sets status to success" do
-      described_class.new.perform(task.id, chunks, profile.id, 1280, 720)
+      described_class.new.perform(task.id, chunks, 1280, 720)
 
       expect(task.reload.status).to eq("success")
+    end
+
+    it "records completion time" do
+      described_class.new.perform(task.id, chunks, 1280, 720)
+
+      expect(task.reload.completion_time).to be_present
     end
 
     context "when image download fails" do
@@ -47,10 +49,12 @@ RSpec.describe Videos::ImagesToVideoJob, type: :job do
         )
       end
 
-      it "raises an error" do
+      it "raises an error and resets status to pending" do
         expect {
-          described_class.new.perform(task.id, chunks, profile.id, 1280, 720)
+          described_class.new.perform(task.id, chunks, 1280, 720)
         }.to raise_error(/Failed to download image/)
+
+        expect(task.reload.status).to eq("pending")
       end
     end
 
@@ -65,10 +69,12 @@ RSpec.describe Videos::ImagesToVideoJob, type: :job do
         end
       end
 
-      it "raises an error" do
+      it "raises an error and resets status to pending" do
         expect {
-          described_class.new.perform(task.id, chunks, profile.id, 1280, 720)
+          described_class.new.perform(task.id, chunks, 1280, 720)
         }.to raise_error(/FFmpeg processing failed/)
+
+        expect(task.reload.status).to eq("pending")
       end
     end
   end
