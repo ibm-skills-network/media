@@ -6,7 +6,5 @@ module Videos
       class_name: "Videos::ImagesToVideoTask",
       foreign_key: "images_to_video_profile_id",
       dependent: :restrict_with_error
-
-    enum :label, { "vp9" => 0, "av1_nvenc" => 1, "openh264" => 2 }
   end
 end

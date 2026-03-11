@@ -9,9 +9,9 @@ module Videos
       task&.failed!
     end
 
-    def perform(task_id, chunks, profile_id, width, height)
+    def perform(task_id, chunks, codec, width, height)
       task = ImagesToVideoTask.find(task_id)
-      profile = ImagesToVideoProfile.find(profile_id)
+      profile = ImagesToVideoProfile.find_by!(codec: codec)
       task.processing!
       started_at = Time.current
       temp_files = []
