@@ -30,6 +30,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Build openh264 from source
+RUN git clone --depth 1 https://github.com/cisco/openh264 /tmp/openh264 && \
+    cd /tmp/openh264 && \
+    make -j$(nproc) && \
+    make install PREFIX=/usr/local && \
+    ldconfig && \
+    rm -rf /tmp/openh264
+
 # Install NVIDIA codec headers
 RUN git clone https://code.ffmpeg.org/FFmpeg/nv-codec-headers /tmp/nv-codec-headers && \
     cd /tmp/nv-codec-headers && \
@@ -50,6 +58,7 @@ RUN git clone --depth 1 https://git.ffmpeg.org/ffmpeg.git /tmp/ffmpeg && \
         --enable-libx264 \
         --enable-libvpx \
         --enable-libopus \
+        --enable-libopenh264 \
         --enable-nvdec \
         --enable-libnpp \
         --enable-openssl \
@@ -90,6 +99,7 @@ COPY --from=0 /usr/local/bin/ffprobe /usr/local/bin/
 COPY --from=0 /usr/local/lib/libav*.so* /usr/local/lib/
 COPY --from=0 /usr/local/lib/libsw*.so* /usr/local/lib/
 COPY --from=0 /usr/local/lib/libpostproc*.so* /usr/local/lib/
+COPY --from=0 /usr/local/lib/libopenh264*.so* /usr/local/lib/
 COPY --from=0 /usr/local/cuda/lib64/ /usr/local/cuda/lib64/
 
 RUN ldconfig
