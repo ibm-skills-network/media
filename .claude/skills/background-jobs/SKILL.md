@@ -86,7 +86,7 @@ end
 
 ### 3. State Machine Job
 
-Jobs that manage record state transitions (common pattern in author-workbench):
+Jobs that manage record state transitions:
 
 ```ruby
 class ProcessContentJob < ApplicationJob
