@@ -8,12 +8,12 @@ class DubbingTask < ApplicationRecord
 
     VOICES = {
         "peninsular" => {
-        "man"   => ["851ejYcv2BoNPjrkw93G", "eEyWolF7iBpMA65GbtAm", "SKjgN71N3MeGl4r2JbRt"],
-        "woman" => ["AxFLn9byyiDbMn5fmyqu", "Oe0GElYvnDDV5qP1vbE2", "gD1IexrzCvsXPHUuT0s3"]
+        "man"   => [ "851ejYcv2BoNPjrkw93G", "eEyWolF7iBpMA65GbtAm", "SKjgN71N3MeGl4r2JbRt" ],
+        "woman" => [ "AxFLn9byyiDbMn5fmyqu", "Oe0GElYvnDDV5qP1vbE2", "gD1IexrzCvsXPHUuT0s3" ]
         },
         "latin-american" => {
-        "man"   => ["YExhVa4bZONzeingloMX", "t3eeeqhBjrUqcrPvDqUn", "4XUsiqPDK4UACIM2BILe"],
-        "woman" => ["cIBxLwfshLYhRB9lCXEg", "nTkjq09AuYgsNR8E4sDe", "nbcvT3C2tyOd2OsRAtUf"]
+        "man"   => [ "YExhVa4bZONzeingloMX", "t3eeeqhBjrUqcrPvDqUn", "4XUsiqPDK4UACIM2BILe" ],
+        "woman" => [ "cIBxLwfshLYhRB9lCXEg", "nTkjq09AuYgsNR8E4sDe", "nbcvT3C2tyOd2OsRAtUf" ]
         }
     }.freeze
 

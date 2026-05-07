@@ -47,7 +47,6 @@ module DubbingPipeline
 
       task.save!
       DubbingPipeline::GenerateDubbedAudioJob.perform_later(task_id)
-
     end
   end
 end

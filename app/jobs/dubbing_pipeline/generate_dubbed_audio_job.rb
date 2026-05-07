@@ -10,7 +10,7 @@ module DubbingPipeline
     def perform(task_id)
       task = DubbingTask.find(task_id)
       output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s).to_s
-      
+
       tts_files = []
       task.segments.each_with_index do |seg, i|
         next if seg["translated_text"].blank?
@@ -41,16 +41,13 @@ module DubbingPipeline
       "--background-path", task.background_path,
       "--output-dir", output_dir
       )
-      
+
       raise "Audio mixing failed: #{stderr}" unless status.success?
 
       dubbed_audio_path = File.join(output_dir, "dubbed.mp3")
       task.update!(dubbed_audio_path: dubbed_audio_path)
 
       DubbingPipeline::CreateDubbedVideoJob.perform_later(task_id)
-
-
-
     end
   end
 end
