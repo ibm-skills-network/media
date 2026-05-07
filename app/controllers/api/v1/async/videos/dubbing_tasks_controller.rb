@@ -12,14 +12,14 @@ module Api
                         }, status: :ok
                     end
 
-                    def create 
+                    def create
                         task = DubbingTask.create!(
                             video_url: dubbing_params[:video_url],
                             language: dubbing_params[:language],
                             dialect: dubbing_params[:dialect]
                         )
 
-                        render json: {id: task.id, status: task.status }, status: :created
+                        render json: { id: task.id, status: task.status }, status: :created
                     end
 
                     private

@@ -3,7 +3,7 @@ class CreateDubbingTasks < ActiveRecord::Migration[8.1]
     create_table :dubbing_tasks do |t|
       t.string :video_url, null: false
       t.string :language, null: false
-      t.string :dialect 
+      t.string :dialect
       t.string :audio_path
       t.string :vocals_path
       t.string :background_path
