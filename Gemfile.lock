@@ -121,6 +121,10 @@ GEM
     deep_merge (1.2.2)
     diff-lcs (1.6.2)
     docile (1.4.1)
+    dotenv (3.2.0)
+    dotenv-rails (3.2.0)
+      dotenv (= 3.2.0)
+      railties (>= 6.1)
     drb (2.2.3)
     erb (6.0.4)
     erubi (1.13.1)
@@ -137,6 +141,8 @@ GEM
       faraday-net_http (>= 2.0, < 3.5)
       json
       logger
+    faraday-multipart (1.2.0)
+      multipart-post (~> 2.0)
     faraday-net_http (3.4.2)
       net-http (~> 0.5)
     ffi (1.17.4-aarch64-linux-gnu)
@@ -194,6 +200,7 @@ GEM
       drb (~> 2.0)
       prism (~> 1.5)
     msgpack (1.8.0)
+    multipart-post (2.4.1)
     net-http (0.7.0)
       uri
     net-imap (0.5.13)
@@ -409,9 +416,11 @@ DEPENDENCIES
   config
   data_migrate
   debug
+  dotenv-rails
   factory_bot_rails (~> 6.2)
   faker (~> 2.21)
   faraday
+  faraday-multipart
   instana
   jbuilder (~> 2.14)
   jwt

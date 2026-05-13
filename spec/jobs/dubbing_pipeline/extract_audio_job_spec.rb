@@ -6,7 +6,7 @@ RSpec.describe DubbingPipeline::ExtractAudioJob, type: :job do
   describe "#perform" do
     context "when ffmpeg succeeds" do
       before do
-        allow(Open3).to receive(:capture3).and_return(["", "", double(success?: true)])
+        allow(Open3).to receive(:capture3).and_return([ "", "", double(success?: true) ])
         allow(DubbingPipeline::SeparateAudioJob).to receive(:perform_later)
       end
 
@@ -25,7 +25,7 @@ RSpec.describe DubbingPipeline::ExtractAudioJob, type: :job do
 
     context "when ffmpeg fails" do
       before do
-        allow(Open3).to receive(:capture3).and_return(["", "ffmpeg error", double(success?: false)])
+        allow(Open3).to receive(:capture3).and_return([ "", "ffmpeg error", double(success?: false) ])
       end
 
       it "raises an error" do

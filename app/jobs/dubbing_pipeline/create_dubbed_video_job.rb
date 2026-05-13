@@ -1,6 +1,6 @@
 module DubbingPipeline
   class CreateDubbedVideoJob < ApplicationJob
-    queue_as :default
+    queue_as :low
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
@@ -29,6 +29,5 @@ module DubbingPipeline
       task.update!(dubbed_video_path: dubbed_video_path)
       DubbingPipeline::CreateHlsJob.perform_later(task_id)
     end
-
   end
 end

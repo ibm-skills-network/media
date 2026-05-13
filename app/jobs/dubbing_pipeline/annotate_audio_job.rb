@@ -1,5 +1,5 @@
 module DubbingPipeline
-  class DiarizeJob < ApplicationJob
+  class AnnotateAudioJob < ApplicationJob
     queue_as :gpu
 
     sidekiq_retries_exhausted do |msg, exception|
@@ -9,17 +9,21 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s)
+      FileUtils.mkdir_p(output_dir)
+
+      segments_in_path = output_dir.join("segments_in.json").to_s
+      File.write(segments_in_path, task.segments.to_json)
 
       stdout, stderr, status = Open3.capture3(
-        "python3", Rails.root.join("script/dubbing/diarize.py").to_s,
+        "python3", Rails.root.join("script/dubbing/annotate_audio.py").to_s,
         task.vocals_path,
-        "--segments", task.segments.to_json,
-        "--output-dir", Rails.root.join("tmp", "dubbing", task_id.to_s).to_s
+        "--segments-file", segments_in_path,
+        "--output-dir", output_dir.to_s
       )
-      raise "Diarization Failed: #{stderr}" unless status.success?
+      raise "Audio annotation failed: #{stderr}" unless status.success?
 
       task.update!(segments: JSON.parse(stdout))
-
       DubbingPipeline::IdentifyChaptersJob.perform_later(task_id)
     end
   end

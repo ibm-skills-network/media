@@ -6,7 +6,7 @@ RSpec.describe DubbingPipeline::SeparateAudioJob, type: :job do
   describe "#perform" do
     context "when the Python script succeeds" do
       before do
-        allow(Open3).to receive(:capture3).and_return(["", "", double(success?: true)])
+        allow(Open3).to receive(:capture3).and_return([ "", "", double(success?: true) ])
         allow(DubbingPipeline::TranscribeJob).to receive(:perform_later)
       end
 
@@ -31,7 +31,7 @@ RSpec.describe DubbingPipeline::SeparateAudioJob, type: :job do
 
     context "when the Python script fails" do
       before do
-        allow(Open3).to receive(:capture3).and_return(["", "Demucs error", double(success?: false)])
+        allow(Open3).to receive(:capture3).and_return([ "", "Demucs error", double(success?: false) ])
       end
 
       it "raises an error" do
