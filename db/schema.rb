@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_11_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_11_124143) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -43,6 +43,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_11_000001) do
   end
 
   create_table "data_migrations", primary_key: "version", id: :string, force: :cascade do |t|
+  end
+
+  create_table "dubbing_tasks", force: :cascade do |t|
+    t.string "audio_path"
+    t.string "background_path"
+    t.jsonb "chapters", default: [], null: false
+    t.datetime "created_at", null: false
+    t.string "dialect"
+    t.string "dubbed_audio_path"
+    t.string "dubbed_video_path"
+    t.text "error_message"
+    t.string "hls_path"
+    t.string "language", null: false
+    t.jsonb "segments", default: [], null: false
+    t.string "status", default: "pending", null: false
+    t.jsonb "subtitle_segments", default: [], null: false
+    t.datetime "updated_at", null: false
+    t.string "video_url", null: false
+    t.string "vocals_path"
   end
 
   create_table "images_to_video_tasks", force: :cascade do |t|
