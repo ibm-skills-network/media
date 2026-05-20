@@ -16,17 +16,20 @@ module DubbingPipeline
       duration = probe_duration(task.dubbed_video_path)
       lang_code = task.lang_code
 
-      vtt_en = File.join(output_dir, "transcript_en.vtt")
-      srt_en = File.join(output_dir, "transcript_en.srt")
-      vtt_dub = File.join(output_dir, "transcript_#{lang_code}.vtt")
+      # VTT is consumed by the HLS player via the subtitle playlists, so it lives in hls_dir
+      # SRT is consumed by the COS Player config (cos_player.json), so it lives in output_dir
+      vtt_en  = File.join(hls_dir, "subs_en.webvtt")
+      vtt_dub = File.join(hls_dir, "subs_#{lang_code}.webvtt")
+      srt_en  = File.join(output_dir, "transcript_en.srt")
       srt_dub = File.join(output_dir, "transcript_#{lang_code}.srt")
 
       subtitle_segments = task.export_segments
-      write_vtt(subtitle_segments, vtt_en, use_translated: false)
-      write_srt(subtitle_segments, srt_en, use_translated: false)
-      write_vtt(subtitle_segments, vtt_dub, use_translated: true)
-      write_srt(subtitle_segments, srt_dub, use_translated: true)
+      write_subtitles(subtitle_segments, vtt_en, format: :vtt, use_translated: false)
+      write_subtitles(subtitle_segments, vtt_dub, format: :vtt, use_translated: true)
+      write_subtitles(subtitle_segments, srt_en, format: :srt, use_translated: false)
+      write_subtitles(subtitle_segments, srt_dub, format: :srt, use_translated: true)
 
+      # Video-only HLS stream, fMP4 segments are needed so audio tracks can be swapped
       run_ffmpeg!(
         "-i", task.dubbed_video_path, "-an", "-c:v", "copy",
         "-f", "hls", "-hls_time", "6",
@@ -38,6 +41,7 @@ module DubbingPipeline
         error: "HLS video segmenting failed"
       )
 
+      # English audio track
       run_ffmpeg!(
         "-i", task.audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
         "-f", "hls", "-hls_time", "6",
@@ -49,6 +53,7 @@ module DubbingPipeline
         error: "HLS english audio failed"
       )
 
+      # Dubbed audio track, same encoding as English so the player can switch cleanly
       run_ffmpeg!(
         "-i", task.dubbed_audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
         "-f", "hls", "-hls_time", "6",
@@ -60,9 +65,7 @@ module DubbingPipeline
         error: "HLS dubbed audio failed"
       )
 
-      FileUtils.cp(vtt_en, File.join(hls_dir, "subs_en.webvtt"))
-      FileUtils.cp(vtt_dub, File.join(hls_dir, "subs_#{lang_code}.webvtt"))
-
+      # One subtitle playlist per language, wrapping the .webvtt as a single HLS segment
       [ "en", lang_code ].uniq.each do |lang|
         File.write(File.join(hls_dir, "playlist_s-#{lang}.m3u8"), <<~M3U8)
           #EXTM3U
@@ -75,12 +78,15 @@ module DubbingPipeline
         M3U8
       end
 
+      # VTT chapters for the HLS player, JSON chapters for the COS Player UI
       write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_en.vtt"), duration, key: "title")
       write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{lang_code}.vtt"), duration, key: "title_dubbed")
       File.write(File.join(output_dir, "chapters.json"), JSON.pretty_generate(task.chapters))
 
+      # Master playlist, creates file which player loads to start the stream
       write_master_playlist(File.join(hls_dir, "master.m3u8"), task.language, lang_code)
 
+      # COS Player config, points at the HLS stream and lists the SRT subtitle files
       write_cos_player_json(task, output_dir, duration, lang_code)
 
       task.update!(hls_path: File.join(hls_dir, "master.m3u8"), status: "success")
@@ -104,41 +110,24 @@ module DubbingPipeline
       out.strip.to_f
     end
 
-    def fmt_vtt(seconds)
+    def fmt_timestamp(seconds, ms_sep:)
       h = (seconds / 3600).to_i
       m = ((seconds % 3600) / 60).to_i
       s = (seconds % 60).to_i
       ms = ((seconds % 1) * 1000).to_i
-      format("%02d:%02d:%02d.%03d", h, m, s, ms)
+      format("%02d:%02d:%02d#{ms_sep}%03d", h, m, s, ms)
     end
 
-    def fmt_srt(seconds)
-      h = (seconds / 3600).to_i
-      m = ((seconds % 3600) / 60).to_i
-      s = (seconds % 60).to_i
-      ms = ((seconds % 1) * 1000).to_i
-      format("%02d:%02d:%02d,%03d", h, m, s, ms)
-    end
-
-    def write_vtt(segments, path, use_translated:)
+    def write_subtitles(segments, path, format:, use_translated:)
+      ms_sep = format == :vtt ? "." : ","
       File.open(path, "w") do |f|
-        f.write("WEBVTT\n\n")
+        f.write("WEBVTT\n\n") if format == :vtt
         segments.each_with_index do |seg, i|
           text = use_translated ? seg["translated_text"] : seg["text"]
+          line = format == :vtt ? "<v #{seg["speaker"]}>#{text}" : text
           f.write("#{i + 1}\n")
-          f.write("#{fmt_vtt(seg["start"])} --> #{fmt_vtt(seg["end"])}\n")
-          f.write("<v #{seg["speaker"]}>#{text}\n\n")
-        end
-      end
-    end
-
-    def write_srt(segments, path, use_translated:)
-      File.open(path, "w") do |f|
-        segments.each_with_index do |seg, i|
-          text = use_translated ? seg["translated_text"] : seg["text"]
-          f.write("#{i + 1}\n")
-          f.write("#{fmt_srt(seg["start"])} --> #{fmt_srt(seg["end"])}\n")
-          f.write("#{text}\n\n")
+          f.write("#{fmt_timestamp(seg["start"], ms_sep: ms_sep)} --> #{fmt_timestamp(seg["end"], ms_sep: ms_sep)}\n")
+          f.write("#{line}\n\n")
         end
       end
     end
@@ -150,7 +139,7 @@ module DubbingPipeline
           end_time = chapters[i + 1] ? chapters[i + 1]["start"] : duration
           title = ch[key] || ch["title"]
           f.write("Chapter #{i + 1}\n")
-          f.write("#{fmt_vtt(ch["start"])} --> #{fmt_vtt(end_time)}\n")
+          f.write("#{fmt_timestamp(ch["start"], ms_sep: ".")} --> #{fmt_timestamp(end_time, ms_sep: ".")}\n")
           f.write("#{title}\n\n")
         end
       end

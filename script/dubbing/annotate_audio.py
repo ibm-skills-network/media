@@ -10,8 +10,10 @@ from inaSpeechSegmenter import Segmenter
 
 @contextlib.contextmanager
 def redirect_stdout_to_stderr():
-    """inaSpeechSegmenter prints init messages to stdout. Ruby parses our stdout as JSON,
-    so route those to stderr instead"""
+    """
+    inaSpeechSegmenter prints init messages to stdout; Ruby parses the stdout as JSON
+    so route those to stderr instead
+    """
     original_stdout_fd = os.dup(1)
     try:
         os.dup2(2, 1)
@@ -93,7 +95,9 @@ def main():
 
 
 def analyze_prosody(y, sr, start, end):
-    """Energy + pitch trend of an audio segment -> TTS style (excited/soft/expressive/neutral)."""
+    """
+    Energy + pitch trend of an audio segment -> TTS style (excited/soft/expressive/neutral)
+    """
     chunk = y[int(start * sr):int(end * sr)]
     if len(chunk) < int(sr * 0.1):
         return "neutral"

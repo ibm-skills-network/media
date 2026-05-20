@@ -17,7 +17,6 @@ FADE_MS = 15
 MIN_SLOT_MS = 100
 SLOT_PAD_MS = 500
 
-
 def build_atempo_chain(speed):
     filters = []
     remaining = speed
@@ -31,29 +30,31 @@ def build_atempo_chain(speed):
     return filters
 
 
-def adjust_speed(audio, speed, output_dir):
+def adjust_speed(audio, speed, output_dir, segment_index):
     if abs(speed - 1.0) < 0.01:
         return audio
 
-    temp_in = os.path.join(output_dir, "_speed_in.mp3")
-    temp_out = os.path.join(output_dir, "_speed_out.mp3")
+    temp_in = os.path.join(output_dir, f"_speed_in_{segment_index}.mp3")
+    temp_out = os.path.join(output_dir, f"_speed_out_{segment_index}.mp3")
 
-    audio.export(temp_in, format="mp3")
-    filter_str = ",".join(build_atempo_chain(speed))
-    result = subprocess.run(
-        ["ffmpeg", "-y", "-i", temp_in, "-filter:a", filter_str, temp_out],
-        capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        os.remove(temp_in)
-        raise RuntimeError(
-            f"ffmpeg atempo failed (speed={speed}, filter={filter_str}): {result.stderr}"
+    try:
+        audio.export(temp_in, format="mp3")
+        filter_str = ",".join(build_atempo_chain(speed))
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", temp_in, "-filter:a", filter_str, temp_out],
+            capture_output=True, text=True,
         )
-
-    audio_out = AudioSegment.from_mp3(temp_out)
-    os.remove(temp_in)
-    os.remove(temp_out)
-    return audio_out
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"ffmpeg atempo failed (speed={speed}, filter={filter_str}): {result.stderr}"
+            )
+        return AudioSegment.from_mp3(temp_out)
+    finally:
+        for path in (temp_in, temp_out):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
 
 def detect_silent_regions(audio_path, threshold_db=-40.0):
@@ -97,21 +98,21 @@ def crossfade_splice(audio_a, audio_b, crossfade_ms=CROSSFADE_MS):
     return audio_a.append(audio_b, crossfade=crossfade_ms)
 
 
-def place_clip(tts_audio, slot_ms, seg_duration_ms, output_dir):
+def place_clip(tts_audio, slot_ms, seg_duration_ms, output_dir, segment_index):
     """Fit a TTS clip into the available slot. Speed up if too long, slow down (gently) if much shorter."""
     if len(tts_audio) > slot_ms:
         speed = len(tts_audio) / slot_ms
         if speed <= MAX_SPEED:
-            tts_audio = adjust_speed(tts_audio, speed, output_dir)
+            tts_audio = adjust_speed(tts_audio, speed, output_dir, segment_index)
         else:
-            tts_audio = adjust_speed(tts_audio, MAX_SPEED, output_dir)
+            tts_audio = adjust_speed(tts_audio, MAX_SPEED, output_dir, segment_index)
             if len(tts_audio) > slot_ms:
                 tts_audio = tts_audio[:slot_ms].fade_out(50)
     elif seg_duration_ms > 0 and len(tts_audio) < seg_duration_ms:
         speed = len(tts_audio) / seg_duration_ms
         if speed < MIN_SPEED:
             speed = MIN_SPEED
-        tts_audio = adjust_speed(tts_audio, speed, output_dir)
+        tts_audio = adjust_speed(tts_audio, speed, output_dir, segment_index)
     return tts_audio.fade_in(FADE_MS).fade_out(FADE_MS)
 
 
@@ -180,7 +181,7 @@ def main():
 
         tts_audio = AudioSegment.from_mp3(tts_map[i])
         seg_duration_ms = int((segments[i]["end"] - segments[i]["start"]) * 1000)
-        tts_audio = place_clip(tts_audio, slot_ms, seg_duration_ms, args.output_dir)
+        tts_audio = place_clip(tts_audio, slot_ms, seg_duration_ms, args.output_dir, i)
 
         tts_track = tts_track.overlay(tts_audio, position=slot_start)
         placed_ranges.append((slot_start, slot_start + len(tts_audio)))

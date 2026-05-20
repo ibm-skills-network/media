@@ -27,9 +27,15 @@ module DubbingPipeline
           messages: [
             {
               role: "system",
-              content: "You are a video editor. Given a transcript with timestamps, identify logical chapters/sections. " \
-                       "Return a JSON object with a 'chapters' array of objects, each with 'start' (seconds as float), " \
-                       "'title' (English), and 'title_dubbed' (#{task.language} translation)."
+              content: <<~PROMPT
+                You are a video editor segmenting a lecture or talk into chapters for a player's chapter menu.
+
+                Aim for roughly one chapter every 2 to 4 minutes, with a minimum of 2 and a maximum of 12 chapters. Return an empty chapters array if the video is under 90 seconds.
+
+                Each chapter should mark a real topical shift — a new concept, a new example, a new section of the argument. Do not insert chapters just to hit a count.
+
+                Return a JSON object: { "chapters": [{ "start": <seconds float>, "title": "<English, max 60 chars>", "title_dubbed": "<#{task.language} translation, max 60 chars>" }] }
+              PROMPT
             },
             {
               role: "user",
@@ -42,7 +48,12 @@ module DubbingPipeline
       raise "GPT chapters failed: #{response.status} #{response.body}" unless response.success?
 
       parsed = JSON.parse(JSON.parse(response.body)["choices"][0]["message"]["content"])
-      chapters = parsed["chapters"] || []
+      chapters = (parsed["chapters"] || []).map do |ch|
+        ch.merge(
+          "title" => ch["title"].to_s[0, 60],
+          "title_dubbed" => ch["title_dubbed"].to_s[0, 60]
+        )
+      end
       task.update!(chapters: chapters)
       DubbingPipeline::TranslateJob.perform_later(task_id)
     end

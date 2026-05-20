@@ -29,6 +29,7 @@ def main():
     demucs_dir = output_dir / "htdemucs" / audio_path.stem
     shutil.move(str(demucs_dir / "vocals.wav"), str(output_dir / "vocals.wav"))
     shutil.move(str(demucs_dir / "no_vocals.wav"), str(output_dir / "background.wav"))
+    shutil.rmtree(output_dir / "htdemucs", ignore_errors=True)
 
 
 if __name__ == "__main__":

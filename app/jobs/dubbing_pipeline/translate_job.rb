@@ -30,7 +30,12 @@ module DubbingPipeline
           seg["translated_text"] = translated
         end
       end
-      Rails.logger.warn("[TranslateJob] #{missing.size} segments fell back to source text: #{missing.first(10).inspect}") if missing.any?
+      if missing.any?
+        Rails.logger.warn("[TranslateJob] #{missing.size} segments fell back to source text: #{missing.first(10).inspect}")
+        if missing.size > segments.size / 10
+          raise "Translation incomplete: #{missing.size}/#{segments.size} segments missing translations"
+        end
+      end
 
       task.update!(segments: segments, subtitle_segments: segments)
       DubbingPipeline::GenerateDubbedAudioJob.perform_later(task_id)
@@ -55,23 +60,30 @@ module DubbingPipeline
 
     def translate_batches_in_parallel(batches, segments, target_lang)
       pool = Concurrent::FixedThreadPool.new(MAX_CONCURRENCY)
-      futures = batches.map do |batch|
-        Concurrent::Promises.future_on(pool) { translate_batch_with_retry(batch, segments, target_lang) }
-      end
-
-      translations = {}
-      futures.each_with_index do |future, idx|
-        result = future.value
-        if future.rejected?
-          Rails.logger.error("[TranslateJob] batch #{idx} failed: #{future.reason&.message}")
-          next
+      begin
+        futures = batches.map do |batch|
+          Concurrent::Promises.future_on(pool) { translate_batch_with_retry(batch, segments, target_lang) }
         end
-        translations.merge!(result) if result.is_a?(Hash)
-      end
 
-      pool.shutdown
-      pool.wait_for_termination
-      translations
+        translations = {}
+        failures = []
+        futures.each_with_index do |future, idx|
+          result = future.value!(BATCH_TIMEOUT_S + 100)
+          translations.merge!(result) if result.is_a?(Hash)
+        rescue => e
+          Rails.logger.error("[TranslateJob] batch #{idx} failed: #{e.class}: #{e.message}")
+          failures << { idx: idx, error: e.message }
+        end
+
+        if failures.any?
+          Rails.logger.error("[TranslateJob] #{failures.size}/#{batches.size} batches failed")
+        end
+
+        translations
+      ensure
+        pool.shutdown
+        pool.wait_for_termination(30) || pool.kill
+      end
     end
 
     def translate_batch_with_retry(batch, segments, target_lang)

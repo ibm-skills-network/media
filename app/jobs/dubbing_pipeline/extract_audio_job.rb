@@ -1,6 +1,8 @@
 module DubbingPipeline
   class ExtractAudioJob < ApplicationJob
-    queue_as :low
+    queue_as :gpu
+
+    class InvalidSourceError < StandardError; end
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
@@ -11,7 +13,12 @@ module DubbingPipeline
       task = DubbingTask.find(task_id)
       task.processing!
 
-      validate_source!(task.video_url)
+      begin
+        validate_source!(task.video_url)
+      rescue InvalidSourceError => e
+        task.update!(status: "failed", error_message: e.message)
+        return
+      end
 
       output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s)
       FileUtils.mkdir_p(output_dir)
@@ -37,9 +44,9 @@ module DubbingPipeline
     private
 
     def validate_source!(source)
-      raise "video_url is blank" if source.to_s.strip.empty?
+      raise InvalidSourceError, "video_url is blank" if source.to_s.strip.empty?
       return if source.start_with?("http://", "https://")
-      raise "Local video not found: #{source}" unless File.exist?(source)
+      raise InvalidSourceError, "Local video not found: #{source}" unless File.exist?(source)
     end
   end
 end

@@ -71,6 +71,7 @@ module DubbingPipeline
 
     private
 
+    # Combine short adjacent same speaker segments so TTS has longer phrases to voice naturally
     def merge_segments_for_tts(segments)
       return [] if segments.empty?
 
@@ -86,6 +87,7 @@ module DubbingPipeline
         gap = seg["start"] - current["end"]
         merged_duration = seg["end"] - current["start"]
         same_speaker = seg["speaker"] == current["speaker"]
+        # Doesn't merge across sentence boundaries b/c TTS needs a pause between sentences
         ends_with_sentence = current["translated_text"].to_s.rstrip[-1, 1].to_s.match?(/[.!?;:]/)
 
         if same_speaker && gap <= MAX_GAP_S && merged_duration <= MAX_MERGED_DURATION_S && !ends_with_sentence
@@ -111,9 +113,8 @@ module DubbingPipeline
           .strip
     end
 
-    # Slot bounds match mix_dubbed_audio.py: from this segment's start to min(next clip's
-    # segment start, this segment's end + SLOT_PAD_S). Capping at segment end means long
-    # pauses after sentences don't inflate the slot.
+    # How much time the TTS clip has to fit in: from this segment's start until either the
+    # next spoken segment starts or shortly after this one ends, whichever is sooner.
     def compute_slot_seconds(segments, i, total_s)
       seg_start = segments[i]["start"]
       seg_end = segments[i]["end"]
@@ -142,13 +143,13 @@ module DubbingPipeline
         write_tts_clip(current_text, voice_id, clip_path, voice_settings)
         clip_ms = tts_duration_ms(clip_path)
 
-        # If the clip fits, or speedup alone can rescue it, we're done — Python handles the speedup.
+        # If the clip fits, or just a speedup can rescue it, we return since Python handles the speedup
         return [ clip_path, current_text ] if clip_ms <= slot_ms || (clip_ms.to_f / slot_ms) <= MAX_SPEED
 
         current_text = retranslate_shorter(current_text, original_text, slot_s, target_lang)
       end
 
-      # Final attempt with the last retranslation; Python will speed-up or trim if still long
+      # Final attempt with last retranslation; Python will speed-up or trim if it's still long
       write_tts_clip(current_text, voice_id, clip_path, voice_settings)
       [ clip_path, current_text ]
     end
@@ -197,7 +198,32 @@ module DubbingPipeline
           messages: [
             {
               role: "system",
-              content: "You are a dubbing translator. The previous #{target_lang} translation is too long for the available time (#{slot_s.round(1)}s). Produce a SHORTER translation (max ~#{max_syllables} syllables) that preserves the core meaning. Return ONLY the translated text."
+              content: <<~PROMPT
+                You are a dubbing translator. The previous #{target_lang} translation is too long for the available audio slot (#{slot_s.round(1)}s, ~#{max_syllables} syllables). Produce a tighter #{target_lang} version that preserves the speaker's intent.
+
+                Prefer:
+                  - Stronger single verbs over compound constructions
+                  - Dropping fillers, hedges, and redundant qualifiers ("really", "actually", "you know")
+                  - Keeping proper nouns, numbers, and key terms intact
+
+                Avoid:
+                  - Amputating meaningful content — compress, don't truncate
+                  - Changing the emotional tone or register
+                  - Em-dashes, en-dashes, or hyphens as separators (text is read aloud by TTS)
+
+                Here is the kind of compression to perform (shown in English; apply equivalently in #{target_lang}):
+
+                Verbose: "So, what we're going to do is take a look at zero-shot prompting."
+                Tighter: "We'll examine zero-shot prompting."
+
+                Verbose: "It's really, really important that you understand this before we continue."
+                Tighter: "It's vital to grasp this first."
+
+                Verbose: "The reason this matters is because it directly affects performance."
+                Tighter: "This directly affects performance."
+
+                Return ONLY the tighter #{target_lang} translation. No quotes, no commentary, no language label.
+              PROMPT
             },
             {
               role: "user",

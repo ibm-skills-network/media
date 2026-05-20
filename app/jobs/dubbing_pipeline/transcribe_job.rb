@@ -35,8 +35,7 @@ module DubbingPipeline
           file: file,
           model: "gpt-4o-transcribe-diarize",
           response_format: "diarized_json",
-          chunking_strategy: "auto",
-          language: "en"
+          chunking_strategy: "auto"
         }
       end
       raise "Transcription failed: #{response.status} #{response.body}" unless response.success?

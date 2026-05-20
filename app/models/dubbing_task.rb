@@ -18,8 +18,8 @@ class DubbingTask < ApplicationRecord
   }.freeze
 
   VOICE_STYLE_PARAMS = {
-    "excited"    => { stability: 0.3, similarity_boost: 0.8,  style: 0.8 },
-    "soft"       => { stability: 0.7, similarity_boost: 0.9,  style: 0.3 },
+    "excited"    => { stability: 0.4, similarity_boost: 0.75, style: 0.5 },
+    "soft"       => { stability: 0.7, similarity_boost: 0.75, style: 0.3 },
     "expressive" => { stability: 0.4, similarity_boost: 0.75, style: 0.6 },
     "neutral"    => { stability: 0.5, similarity_boost: 0.75, style: 0.0 }
   }.freeze
