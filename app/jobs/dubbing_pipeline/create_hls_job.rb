@@ -9,12 +9,15 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      return if task.failed? || task.success?
+
       output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s).to_s
       hls_dir = File.join(output_dir, "hls")
       FileUtils.mkdir_p(hls_dir)
 
       duration = probe_duration(task.dubbed_video_path)
       lang_code = task.lang_code
+      raise "CreateHlsJob: target language cannot equal source '#{DubbingTask::SOURCE_LANG_CODE}'" if lang_code == DubbingTask::SOURCE_LANG_CODE
 
       # VTT is consumed by the HLS player via the subtitle playlists, so it lives in hls_dir
       # SRT is consumed by the COS Player config (cos_player.json), so it lives in output_dir

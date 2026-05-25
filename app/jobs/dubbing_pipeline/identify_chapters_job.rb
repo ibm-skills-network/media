@@ -9,6 +9,7 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      return if task.failed? || task.success?
 
       transcript = task.segments.map do |seg|
         "[#{seg["start"].round(1)}s - #{seg["end"].round(1)}s] #{seg["text"]}"

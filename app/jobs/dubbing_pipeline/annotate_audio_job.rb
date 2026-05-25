@@ -9,6 +9,8 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      return if task.failed? || task.success?
+
       output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s)
       FileUtils.mkdir_p(output_dir)
 

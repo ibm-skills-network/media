@@ -15,6 +15,8 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      return if task.failed? || task.success?
+
       segments = task.segments
 
       batches = build_batches(segments)

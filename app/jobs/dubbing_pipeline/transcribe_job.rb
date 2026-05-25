@@ -9,6 +9,7 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      return if task.failed? || task.success?
 
       mp3_path = Rails.root.join("tmp", "dubbing", task_id.to_s, "transcribe.mp3").to_s
 

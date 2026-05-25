@@ -24,11 +24,18 @@ class DubbingTask < ApplicationRecord
     "neutral"    => { stability: 0.5, similarity_boost: 0.75, style: 0.0 }
   }.freeze
 
-  SUPPORTED_LANGUAGES = %w[Spanish].freeze
+  SOURCE_LANG_CODE = "en".freeze
+
+  LANGUAGE_CODES = {
+    "Spanish" => "es"
+  }.freeze
+
+  SUPPORTED_LANGUAGES = LANGUAGE_CODES.keys.freeze
 
   validates :video_url, presence: true
   validates :language, inclusion: { in: SUPPORTED_LANGUAGES }
   validates :dialect, inclusion: { in: VOICES.keys }
+  validate :target_language_is_not_source
 
   def voice_for(speaker)
     gender = segments.find { |s| s["speaker"] == speaker }&.dig("gender") || "man"
@@ -42,7 +49,7 @@ class DubbingTask < ApplicationRecord
   end
 
   def lang_code
-    language.to_s.downcase[0..1]
+    LANGUAGE_CODES.fetch(language)
   end
 
   def export_segments
@@ -51,5 +58,12 @@ class DubbingTask < ApplicationRecord
 
   def voice_settings_for(prosody)
     VOICE_STYLE_PARAMS[prosody] || VOICE_STYLE_PARAMS["neutral"]
+  end
+
+  private
+
+  def target_language_is_not_source
+    return unless language && LANGUAGE_CODES[language] == SOURCE_LANG_CODE
+    errors.add(:language, "cannot dub to the source language (#{SOURCE_LANG_CODE})")
   end
 end

@@ -11,6 +11,8 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      return if task.failed? || task.success?
+
       task.processing!
 
       begin
@@ -24,20 +26,18 @@ module DubbingPipeline
       FileUtils.mkdir_p(output_dir)
 
       audio_path = output_dir.join("audio.wav").to_s
+      source_video_path = output_dir.join("source.mp4").to_s
 
       _stdout, stderr, status = Open3.capture3(
         "ffmpeg", "-y",
         "-i", task.video_url,
-        "-vn",
-        "-acodec", "pcm_s16le",
-        "-ar", "44100",
-        "-ac", "2",
-        audio_path
+        "-map", "0:a:0", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", audio_path,
+        "-map", "0:v:0", "-c:v", "copy", "-an", source_video_path
       )
 
       raise "ffmpeg failed: #{stderr}" unless status.success?
 
-      task.update!(audio_path: audio_path)
+      task.update!(audio_path: audio_path, source_video_path: source_video_path)
       DubbingPipeline::SeparateAudioJob.perform_later(task_id)
     end
 

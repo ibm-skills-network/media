@@ -15,6 +15,8 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      return if task.failed? || task.success?
+
       output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s).to_s
 
       merged_segments = merge_segments_for_tts(task.segments)
@@ -44,7 +46,7 @@ module DubbingPipeline
         tts_files << { index: i, path: clip_path }
       end
 
-      task.update!(segments: merged_segments, subtitle_segments: merged_segments)
+      task.update!(segments: merged_segments)
 
       segments_file = File.join(output_dir, "mix_segments.json")
       tts_files_path = File.join(output_dir, "mix_tts_files.json")

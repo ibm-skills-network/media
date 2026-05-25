@@ -9,12 +9,14 @@ module DubbingPipeline
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
+      return if task.failed? || task.success?
+
       output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s).to_s
       dubbed_video_path = File.join(output_dir, "dubbed.mp4")
 
       _stdout, stderr, status = Open3.capture3(
         "ffmpeg", "-y",
-        "-i", task.video_url,
+        "-i", task.source_video_path,
         "-i", task.dubbed_audio_path,
         "-c:v", "copy",
         "-c:a", "aac",
