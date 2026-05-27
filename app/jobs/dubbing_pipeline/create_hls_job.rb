@@ -92,7 +92,8 @@ module DubbingPipeline
       # COS Player config, points at the HLS stream and lists the SRT subtitle files
       write_cos_player_json(task, output_dir, duration, lang_code)
 
-      task.update!(hls_path: File.join(hls_dir, "master.m3u8"), status: "success")
+      task.update!(hls_path: File.join(hls_dir, "master.m3u8"))
+      DubbingPipeline::CleanupJob.perform_later(task_id)
     end
 
     private

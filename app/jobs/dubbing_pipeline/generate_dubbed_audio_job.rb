@@ -115,8 +115,6 @@ module DubbingPipeline
           .strip
     end
 
-    # How much time the TTS clip has to fit in: from this segment's start until either the
-    # next spoken segment starts or shortly after this one ends, whichever is sooner.
     def compute_slot_seconds(segments, i, total_s)
       seg_start = segments[i]["start"]
       seg_end = segments[i]["end"]
