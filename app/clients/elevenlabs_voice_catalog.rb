@@ -1,5 +1,4 @@
 class ElevenlabsVoiceCatalog
-
     def pool_for(language_code:, dialect:, gender:, min_size:)
         voices = fetch_voices(language_code)
         matched = filter(voices, dialect:, gender:)
@@ -52,4 +51,3 @@ class ElevenlabsVoiceCatalog
         @http_client ||= Faraday.new(url: "https://api.elevenlabs.io")
     end
 end
-
