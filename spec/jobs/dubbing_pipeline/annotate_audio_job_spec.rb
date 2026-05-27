@@ -9,6 +9,11 @@ RSpec.describe DubbingPipeline::AnnotateAudioJob, type: :job do
   end
 
   describe "#perform" do
+    before do
+      allow(FileUtils).to receive(:mkdir_p)
+      allow(File).to receive(:write)
+    end
+
     context "when annotate_audio.py succeeds" do
       let(:annotated_json) do
         [ {

@@ -19,14 +19,15 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
     allow(FileUtils).to receive(:mkdir_p)
     allow(File).to receive(:write)
     allow(File).to receive(:open).and_yield(StringIO.new)
+    allow(DubbingPipeline::CleanupJob).to receive(:perform_later)
   end
 
   describe "#perform" do
-    it "sets hls_path and marks the task successful" do
+    it "sets hls_path and hands off to CleanupJob" do
       described_class.new.perform(task.id)
       task.reload
-      expect(task.status).to eq("success")
       expect(task.hls_path).to end_with("master.m3u8")
+      expect(DubbingPipeline::CleanupJob).to have_received(:perform_later).with(task.id)
     end
 
     context "when the target language equals the source language" do

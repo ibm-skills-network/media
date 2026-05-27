@@ -4,6 +4,10 @@ RSpec.describe DubbingPipeline::ExtractAudioJob, type: :job do
   let(:task) { create(:dubbing_task) }
 
   describe "#perform" do
+    before do
+      allow(FileUtils).to receive(:mkdir_p)
+    end
+
     context "when ffmpeg succeeds" do
       before do
         allow(Open3).to receive(:capture3).and_return([ "", "", double(success?: true) ])
