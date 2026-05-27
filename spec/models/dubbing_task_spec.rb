@@ -18,8 +18,8 @@ RSpec.describe DubbingTask, type: :model do
       expect(task.errors[:language]).to be_present
     end
 
-    it "rejects dialects outside the VOICES map" do
-      task = build(:dubbing_task, dialect: "martian")
+    it "requires dialect" do
+      task = build(:dubbing_task, dialect: nil)
       expect(task).not_to be_valid
       expect(task.errors[:dialect]).to be_present
     end
@@ -49,11 +49,20 @@ RSpec.describe DubbingTask, type: :model do
 
   describe "#voice_for" do
     let(:task) { build(:dubbing_task, dialect: "latin-american") }
+    let(:man_pool)   { [ "man_voice_a", "man_voice_b", "man_voice_c" ] }
+    let(:woman_pool) { [ "woman_voice_a", "woman_voice_b", "woman_voice_c" ] }
+
+    before do
+      catalog = instance_double(ElevenlabsVoiceCatalog)
+      allow(ElevenlabsVoiceCatalog).to receive(:new).and_return(catalog)
+      allow(catalog).to receive(:pool_for) do |gender:, **|
+        gender == "woman" ? woman_pool : man_pool
+      end
+    end
 
     it "picks the first man voice for the first male speaker" do
       task.segments = [ { "speaker" => "SPEAKER_0", "gender" => "man" } ]
-      expected = DubbingTask::VOICES["latin-american"]["man"].first
-      expect(task.voice_for("SPEAKER_0")).to eq(expected)
+      expect(task.voice_for("SPEAKER_0")).to eq(man_pool.first)
     end
 
     it "assigns distinct voices to distinct same-gender speakers" do
@@ -66,11 +75,11 @@ RSpec.describe DubbingTask, type: :model do
 
     it "picks from the woman pool for a woman speaker" do
       task.segments = [ { "speaker" => "SPEAKER_0", "gender" => "woman" } ]
-      expect(task.voice_for("SPEAKER_0")).to eq(DubbingTask::VOICES["latin-american"]["woman"].first)
+      expect(task.voice_for("SPEAKER_0")).to eq(woman_pool.first)
     end
 
     it "wraps around the pool when there are more speakers than voices" do
-      pool_size = DubbingTask::VOICES["latin-american"]["man"].length
+      pool_size = man_pool.length
       task.segments = (0..pool_size).map { |i| { "speaker" => "SPEAKER_#{i}", "gender" => "man" } }
       first = task.voice_for("SPEAKER_0")
       wrapping = task.voice_for("SPEAKER_#{pool_size}")
@@ -79,7 +88,7 @@ RSpec.describe DubbingTask, type: :model do
 
     it "falls back to 'man' when the speaker has no gender attribute" do
       task.segments = [ { "speaker" => "SPEAKER_0" } ]
-      expect(DubbingTask::VOICES["latin-american"]["man"]).to include(task.voice_for("SPEAKER_0"))
+      expect(man_pool).to include(task.voice_for("SPEAKER_0"))
     end
   end
 
