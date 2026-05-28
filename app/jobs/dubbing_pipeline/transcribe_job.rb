@@ -13,6 +13,7 @@ module DubbingPipeline
 
       mp3_path = Rails.root.join("tmp", "dubbing", task_id.to_s, "transcribe.mp3").to_s
 
+      # Downsample to 16kHz mono mp3 to shrink the upload, transcription API doesn't need more
       _stdout, stderr, status = Open3.capture3(
         "ffmpeg", "-y",
         "-i", task.audio_path,
@@ -118,6 +119,7 @@ module DubbingPipeline
         Rails.logger.warn("[TranscribeJob] GPT returned no sentences array for merge: #{parsed.inspect[0, 200]}")
         return segments
       end
+      # Pull the original fragment index out of GPT's [idx:time] markers
       marker_pattern = /\[(\d+):([\d.]+)\]/
 
       start_indices = data.map do |item|
@@ -129,6 +131,7 @@ module DubbingPipeline
         text = item["text"].to_s.strip
         next if text.empty?
 
+        # Each merged sentence spans from its start marker up to (but not including) the next one
         src_start_idx = start_indices[i] || 0
         next_src_start_idx = start_indices[i + 1] || segments.length
         last_src_idx = [ next_src_start_idx - 1, src_start_idx ].max

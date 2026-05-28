@@ -19,17 +19,19 @@ module DubbingPipeline
       lang_code = task.lang_code
       raise "CreateHlsJob: target language cannot equal source '#{DubbingTask::SOURCE_LANG_CODE}'" if lang_code == DubbingTask::SOURCE_LANG_CODE
 
+      src_code = DubbingTask::SOURCE_LANG_CODE
+
       # VTT is consumed by the HLS player via the subtitle playlists, so it lives in hls_dir
       # SRT is consumed by the COS Player config (cos_player.json), so it lives in output_dir
-      vtt_en  = File.join(hls_dir, "subs_en.webvtt")
+      vtt_src = File.join(hls_dir, "subs_#{src_code}.webvtt")
       vtt_dub = File.join(hls_dir, "subs_#{lang_code}.webvtt")
-      srt_en  = File.join(output_dir, "transcript_en.srt")
+      srt_src = File.join(output_dir, "transcript_#{src_code}.srt")
       srt_dub = File.join(output_dir, "transcript_#{lang_code}.srt")
 
       subtitle_segments = task.export_segments
-      write_subtitles(subtitle_segments, vtt_en, format: :vtt, use_translated: false)
+      write_subtitles(subtitle_segments, vtt_src, format: :vtt, use_translated: false)
       write_subtitles(subtitle_segments, vtt_dub, format: :vtt, use_translated: true)
-      write_subtitles(subtitle_segments, srt_en, format: :srt, use_translated: false)
+      write_subtitles(subtitle_segments, srt_src, format: :srt, use_translated: false)
       write_subtitles(subtitle_segments, srt_dub, format: :srt, use_translated: true)
 
       # Video-only HLS stream, fMP4 segments are needed so audio tracks can be swapped
@@ -69,7 +71,7 @@ module DubbingPipeline
       )
 
       # One subtitle playlist per language, wrapping the .webvtt as a single HLS segment
-      [ "en", lang_code ].uniq.each do |lang|
+      [ src_code, lang_code ].uniq.each do |lang|
         File.write(File.join(hls_dir, "playlist_s-#{lang}.m3u8"), <<~M3U8)
           #EXTM3U
           #EXT-X-TARGETDURATION:#{duration.to_i + 1}
@@ -82,12 +84,12 @@ module DubbingPipeline
       end
 
       # VTT chapters for the HLS player, JSON chapters for the COS Player UI
-      write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_en.vtt"), duration, key: "title")
+      write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{src_code}.vtt"), duration, key: "title")
       write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{lang_code}.vtt"), duration, key: "title_dubbed")
       File.write(File.join(output_dir, "chapters.json"), JSON.pretty_generate(task.chapters))
 
       # Master playlist, creates file which player loads to start the stream
-      write_master_playlist(File.join(hls_dir, "master.m3u8"), task.language, lang_code)
+      write_master_playlist(File.join(hls_dir, "master.m3u8"), task.language, lang_code, src_code)
 
       # COS Player config, points at the HLS stream and lists the SRT subtitle files
       write_cos_player_json(task, output_dir, duration, lang_code)
@@ -103,6 +105,7 @@ module DubbingPipeline
       raise "#{error}: #{stderr}" unless status.success?
     end
 
+    # Returns just the duration in seconds, no headers/labels, so we can parse it as a float
     def probe_duration(path)
       out, _err, status = Open3.capture3(
         "ffprobe", "-v", "error",
@@ -114,6 +117,7 @@ module DubbingPipeline
       out.strip.to_f
     end
 
+    # Converts seconds to HH:MM:SS<sep>mmm. VTT uses "." before ms, SRT uses ","
     def fmt_timestamp(seconds, ms_sep:)
       h = (seconds / 3600).to_i
       m = ((seconds % 3600) / 60).to_i
@@ -140,6 +144,7 @@ module DubbingPipeline
       File.open(path, "w") do |f|
         f.write("WEBVTT\n\n")
         chapters.each_with_index do |ch, i|
+          # A chapter ends where the next one begins, the last chapter runs to video end
           end_time = chapters[i + 1] ? chapters[i + 1]["start"] : duration
           title = ch[key] || ch["title"]
           f.write("Chapter #{i + 1}\n")
@@ -149,14 +154,17 @@ module DubbingPipeline
       end
     end
 
-    def write_master_playlist(path, language, lang_code)
+    def write_master_playlist(path, language, lang_code, src_code)
+      src_name = DubbingTask::SOURCE_LANG_NAME
+      # DEFAULT=YES picks the track the player loads on startup, AUTOSELECT=YES allows the
+      # user to switch to it from the audio/subtitles menu
       File.write(path, <<~M3U8)
         #EXTM3U
 
-        #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-eng.m3u8",GROUP-ID="audio",LANGUAGE="en",NAME="English",DEFAULT=YES,AUTOSELECT=YES
+        #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-eng.m3u8",GROUP-ID="audio",LANGUAGE="#{src_code}",NAME="#{src_name}",DEFAULT=YES,AUTOSELECT=YES
         #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-dub.m3u8",GROUP-ID="audio",LANGUAGE="#{lang_code}",NAME="#{language}",AUTOSELECT=YES
 
-        #EXT-X-MEDIA:TYPE=SUBTITLES,URI="playlist_s-en.m3u8",GROUP-ID="subs",LANGUAGE="en",NAME="English",DEFAULT=YES,AUTOSELECT=YES
+        #EXT-X-MEDIA:TYPE=SUBTITLES,URI="playlist_s-#{src_code}.m3u8",GROUP-ID="subs",LANGUAGE="#{src_code}",NAME="#{src_name}",DEFAULT=YES,AUTOSELECT=YES
         #EXT-X-MEDIA:TYPE=SUBTITLES,URI="playlist_s-#{lang_code}.m3u8",GROUP-ID="subs",LANGUAGE="#{lang_code}",NAME="#{language}",AUTOSELECT=YES
 
         #EXT-X-STREAM-INF:BANDWIDTH=2000000,AUDIO="audio",SUBTITLES="subs"
@@ -165,8 +173,12 @@ module DubbingPipeline
     end
 
     def write_cos_player_json(task, output_dir, duration, lang_code)
+      src_code = DubbingTask::SOURCE_LANG_CODE
+      src_name = DubbingTask::SOURCE_LANG_NAME
+
       chapter_list = task.chapters.each_with_index.map do |ch, i|
         end_time = task.chapters[i + 1] ? task.chapters[i + 1]["start"] : duration
+        # slugify the title for use as an id, "Intro to AI!" becomes "intro_to_ai"
         ch_id = ch["title"].to_s.downcase.gsub(/[^a-z0-9]+/, "_").gsub(/(^_|_$)/, "")
         {
           id: ch_id,
@@ -184,7 +196,7 @@ module DubbingPipeline
           chapters: chapter_list,
           videos: [ { url: "/hls/master.m3u8", quality: "original", downloadable: true, hd: true } ],
           subtitles: [
-            { url: "/transcript_en.srt", label: "English", language: "EN", format: "srt" },
+            { url: "/transcript_#{src_code}.srt", label: src_name, language: src_code.upcase, format: "srt" },
             { url: "/transcript_#{lang_code}.srt", label: task.language, language: lang_code.upcase, format: "srt" }
           ]
         }

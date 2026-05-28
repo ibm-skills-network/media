@@ -14,6 +14,7 @@ module DubbingPipeline
       output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s).to_s
       dubbed_video_path = File.join(output_dir, "dubbed.mp4")
 
+      # Mux the silent source video with the dubbed audio, video stream is copied as-is
       _stdout, stderr, status = Open3.capture3(
         "ffmpeg", "-y",
         "-i", task.source_video_path,

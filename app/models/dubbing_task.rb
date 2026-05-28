@@ -14,9 +14,39 @@ class DubbingTask < ApplicationRecord
   }.freeze
 
   SOURCE_LANG_CODE = "en".freeze
+  SOURCE_LANG_NAME = "English".freeze
 
   LANGUAGE_CODES = {
-    "Spanish" => "es"
+    "Spanish"    => "es",
+    "French"     => "fr",
+    "German"     => "de",
+    "Italian"    => "it",
+    "Portuguese" => "pt",
+    "Hindi"      => "hi",
+    "Japanese"   => "ja",
+    "Chinese"    => "zh",
+    "Arabic"     => "ar",
+    "Russian"    => "ru",
+    "Korean"     => "ko",
+    "Dutch"      => "nl",
+    "Polish"     => "pl",
+    "Turkish"    => "tr",
+    "Swedish"    => "sv",
+    "Indonesian" => "id",
+    "Filipino"   => "fil",
+    "Vietnamese" => "vi",
+    "Ukrainian"  => "uk",
+    "Greek"      => "el",
+    "Czech"      => "cs",
+    "Romanian"   => "ro",
+    "Hungarian"  => "hu",
+    "Danish"     => "da",
+    "Finnish"    => "fi",
+    "Norwegian"  => "no",
+    "Malay"      => "ms",
+    "Tamil"      => "ta",
+    "Bulgarian"  => "bg",
+    "Croatian"   => "hr",
   }.freeze
 
   SUPPORTED_LANGUAGES = LANGUAGE_CODES.keys.freeze
@@ -38,6 +68,8 @@ class DubbingTask < ApplicationRecord
       gender: gender,
       min_size: speakers_in_gender.size
     )
+
+    raise "no voices available for dialect=#{dialect} gender=#{gender}" if voice_pool.blank?
 
     idx = speakers_in_gender.index(speaker) || 0
     voice_pool[idx % voice_pool.length]

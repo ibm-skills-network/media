@@ -28,6 +28,7 @@ module DubbingPipeline
       audio_path = output_dir.join("audio.wav").to_s
       source_video_path = output_dir.join("source.mp4").to_s
 
+      # Split source into audio.wav (44.1kHz stereo PCM) and a silent source.mp4 in one pass
       _stdout, stderr, status = Open3.capture3(
         "ffmpeg", "-y",
         "-i", task.video_url,
