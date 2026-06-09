@@ -13,6 +13,9 @@ module DubbingPipeline
       segments_in.json
       mix_segments.json
       mix_tts_files.json
+      mix_filtergraph.txt
+      tts_track.wav
+      ffmpeg_mix.log
       dubbed.mp3
       dubbed.mp4
     ].freeze
@@ -43,6 +46,7 @@ module DubbingPipeline
       end
 
       Dir.glob(output_dir.join("tts_*.mp3").to_s).each { |p| FileUtils.rm_f(p) }
+      Dir.glob(output_dir.join("_speed_*.mp3").to_s).each { |p| FileUtils.rm_f(p) }
 
       task.update!(CLEARED_PATH_COLUMNS.index_with { nil }.merge(status: "success"))
     end
