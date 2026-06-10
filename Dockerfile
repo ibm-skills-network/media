@@ -8,7 +8,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 USER root
 
-# Install Ruby 3.4.7 from source
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     wget \
@@ -22,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     nodejs \
     npm \
+    libcurl4-openssl-dev \
     && wget https://cache.ruby-lang.org/pub/ruby/3.4/ruby-3.4.7.tar.gz \
     && tar -xzf ruby-3.4.7.tar.gz \
     && cd ruby-3.4.7 \
@@ -58,7 +58,6 @@ ENV APP_HOME /app
 ENV SECRET_KEY_BASE=dummysecret
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tzdata \
     file \
@@ -71,6 +70,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g \
     libffi8 \
     libgmp10 \
+    libcurl4 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Ruby and all dependencies from builder

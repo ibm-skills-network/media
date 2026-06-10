@@ -66,3 +66,5 @@ group :production do
 end
 
 gem "jbuilder", "~> 2.14"
+
+gem 'typhoeus'
