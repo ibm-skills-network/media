@@ -17,57 +17,101 @@ module Videos
       temp_files = []
       output_file = nil
 
+      chunks_by_host = chunks.group_by do |chunk|
+        URI.parse(chunk["image_url"]).host rescue nil
+      end.compact
+
+      clients_pool = Hash.new do |hash, host|
+        hash[host] = Faraday.new(url: "https://#{host}") do |f|
+          f.options.open_timeout = 2.0
+          f.adapter Faraday.default_adapter
+        end
+      end
+
       begin
-        # Download all files in parallel with thread pool
         mutex = Mutex.new
         image_files = []
         audio_files = []
         audio_durations = []
 
-        chunks.each_slice(MAX_THREADS).with_index do |chunk_batch, batch_index|
-          threads = chunk_batch.map.with_index do |chunk, batch_i|
-            i = batch_index * MAX_THREADS + batch_i
-            Thread.new do
-              image_file = Tempfile.new([ "image_#{i}", ".png" ])
-              audio_file = Tempfile.new([ "audio_#{i}", ".mp3" ])
+        chunks_by_host.each do |host, host_chunks|
+          s3_client = clients_pool[host]
 
-              image_file.binmode
-              audio_file.binmode
+          host_chunks.each_slice(MAX_THREADS).with_index do |chunk_batch, batch_index|
+            threads = chunk_batch.map.with_index do |chunk, batch_i|
+              i = chunks.index(chunk)
+              next if i.nil?
 
-              image_response = Faraday.get(chunk["image_url"])
+              Thread.new do
+                image_file = Tempfile.new([ "image_#{i}", ".png" ])
+                audio_file = Tempfile.new([ "audio_#{i}", ".mp3" ])
 
-              audio_response = Faraday.get(chunk["audio_url"])
+                image_file.binmode
+                audio_file.binmode
 
-              if image_response.status != 200
-                raise "Failed to download image for chunk #{i}: HTTP #{image_response.status}"
-              end
+                image_path = chunk["image_url"].gsub(%r{https?://#{host}}, "")
+                audio_path = chunk["audio_url"].gsub(%r{https?://#{host}}, "")
 
-              if audio_response.status != 200
-                raise "Failed to download audio for chunk #{i}: HTTP #{audio_response.status}"
-              end
+                image_response = nil
+                audio_response = nil
 
-              image_file.write(image_response.body)
-              audio_file.write(audio_response.body)
-              image_file.close
-              audio_file.close
+                img_retries = 0
+                begin
+                  image_response = s3_client.get(image_path)
+                rescue Faraday::ConnectionFailed, Timeout::Error => e
+                  if img_retries < 3
+                    img_retries += 1
+                    sleep(0.1 * img_retries)
+                    retry
+                  else
+                    raise e
+                  end
+                end
 
-              duration_cmd = [ "ffprobe", "-i", audio_file.path, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0" ]
-              duration, _stderr, status = Open3.capture3(*duration_cmd)
+                aud_retries = 0
+                begin
+                  audio_response = s3_client.get(audio_path)
+                rescue Faraday::ConnectionFailed, Timeout::Error => e
+                  if aud_retries < 3
+                    aud_retries += 1
+                    sleep(0.1 * aud_retries)
+                    retry
+                  else
+                    raise e
+                  end
+                end
 
-              if !status.success? || duration.strip.empty?
-                raise "Failed to get audio duration for chunk #{i}"
-              end
+                if image_response.status != 200
+                  raise "Failed to download image for chunk #{i}: HTTP #{image_response.status}"
+                end
 
-              mutex.synchronize do
-                image_files[i] = image_file
-                audio_files[i] = audio_file
-                audio_durations[i] = duration.strip
-                temp_files << image_file << audio_file
+                if audio_response.status != 200
+                  raise "Failed to download audio for chunk #{i}: HTTP #{audio_response.status}"
+                end
+
+                image_file.write(image_response.body)
+                audio_file.write(audio_response.body)
+                image_file.close
+                audio_file.close
+
+                duration_cmd = [ "ffprobe", "-i", audio_file.path, "-show_entries", "format=duration", "-v", "quiet", "-of", "csv=p=0" ]
+                duration, _stderr, status = Open3.capture3(*duration_cmd)
+
+                if !status.success? || duration.strip.empty?
+                  raise "Failed to get audio duration for chunk #{i}"
+                end
+
+                mutex.synchronize do
+                  image_files[i] = image_file
+                  audio_files[i] = audio_file
+                  audio_durations[i] = duration.strip
+                  temp_files << image_file << audio_file
+                end
               end
             end
-          end
 
-          threads.each(&:join)
+            threads.compact.each(&:join)
+          end
         end
 
         audio_durations.each_with_index do |duration, i|
