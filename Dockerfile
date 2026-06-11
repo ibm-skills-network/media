@@ -81,7 +81,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Python dependencies for dubbing pipeline scripts.
 # Done before COPY of app code so this layer caches independently of Ruby changes.
 COPY script/dubbing/requirements.txt /tmp/requirements.txt
-RUN pip3 install --no-cache-dir --break-system-packages -r /tmp/requirements.txt \
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
 # Copy Ruby and all dependencies from builder
