@@ -1,23 +1,21 @@
 require "rails_helper"
 
 RSpec.describe DubbingPipeline::CreateDubbedVideoJob, type: :job do
-  let(:task) do
-    create(:dubbing_task,
-      source_video_path: "/tmp/dubbing/1/source.mp4",
-      dubbed_audio_path: "/tmp/dubbing/1/dubbed.mp3"
-    )
-  end
+  let(:task) { create(:dubbing_task, :with_source_video, :with_dubbed_audio) }
 
   describe "#perform" do
     context "when ffmpeg succeeds" do
+      let!(:workspaces) { stub_dubbing_workspace }
+
       before do
         allow(Open3).to receive(:capture3).and_return([ "", "", double(success?: true) ])
         allow(DubbingPipeline::CreateHlsJob).to receive(:perform_later)
       end
 
-      it "sets dubbed_video_path on the task" do
+      it "attaches dubbed.mp4 to the task" do
         described_class.new.perform(task.id)
-        expect(task.reload.dubbed_video_path).to end_with("dubbed.mp4")
+        filenames = workspaces.first.attached.map { |a| a[:filename] }
+        expect(filenames).to eq([ "dubbed.mp4" ])
       end
 
       it "enqueues CreateHlsJob" do
@@ -25,18 +23,17 @@ RSpec.describe DubbingPipeline::CreateDubbedVideoJob, type: :job do
         described_class.new.perform(task.id)
       end
 
-      it "uses the locally-saved source video, not the original URL" do
-        expect(Open3).to receive(:capture3) do |*args|
-          expect(args).to include("/tmp/dubbing/1/source.mp4")
-          expect(args).not_to include(task.video_url)
-          [ "", "", double(success?: true) ]
-        end
+      it "uses the workspace source path, not the original video_url" do
         described_class.new.perform(task.id)
+        expect(Open3).to have_received(:capture3) do |*args|
+          expect(args).not_to include(task.video_url)
+        end
       end
     end
 
     context "when ffmpeg fails" do
       before do
+        stub_dubbing_workspace
         allow(Open3).to receive(:capture3).and_return([ "", "ffmpeg error", double(success?: false) ])
       end
 

@@ -49,8 +49,9 @@ RSpec.describe DubbingPipeline::IdentifyChaptersJob, type: :job do
     context "when GPT call fails" do
       let(:response) { instance_double(Faraday::Response, success?: false, status: 503, body: "down") }
 
-      it "raises" do
-        expect { described_class.new.perform(task.id) }.to raise_error(RuntimeError, /GPT chapters failed/)
+      it "raises without leaking the response body" do
+        expect { described_class.new.perform(task.id) }
+          .to raise_error(RuntimeError, /GPT chapters failed: HTTP 503\z/)
       end
     end
 

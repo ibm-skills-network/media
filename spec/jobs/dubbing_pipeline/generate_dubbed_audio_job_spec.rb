@@ -58,10 +58,7 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
 
   describe "#perform" do
     let(:task) do
-      create(:dubbing_task,
-        background_path: "/tmp/dubbing/1/background.wav",
-        vocals_path:     "/tmp/dubbing/1/vocals.wav",
-        audio_path:      "/tmp/dubbing/1/audio.wav",
+      create(:dubbing_task, :with_audio, :with_vocals, :with_background,
         segments: [ {
           "start" => 0.0, "end" => 2.0, "text" => "Hello", "translated_text" => "Hola",
           "speaker" => "SPEAKER_0", "gender" => "man", "prosody" => "neutral"
@@ -75,6 +72,46 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
         expect(Open3).not_to receive(:capture3)
         expect(Faraday).not_to receive(:new)
         described_class.new.perform(task.id)
+      end
+    end
+
+    context "when mixing succeeds end-to-end" do
+      let!(:workspaces) { stub_dubbing_workspace }
+
+      before do
+        # ffprobe and the mix script both go through capture3; the ffprobe call
+        # returns the duration string, the mix call returns success.
+        allow(Open3).to receive(:capture3).and_return([ "60.0", "", double(success?: true) ])
+        allow(File).to receive(:write)
+        # Skip ElevenLabs/TTS round-trips by zeroing-out the segments-to-voice loop.
+        allow_any_instance_of(described_class).to receive(:merge_segments_for_tts).and_return([])
+        allow(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later)
+      end
+
+      it "attaches dubbed.mp3 only after the mix script succeeds" do
+        described_class.new.perform(task.id)
+        filenames = workspaces.first.attached.map { |a| a[:filename] }
+        expect(filenames).to eq([ "dubbed.mp3" ])
+      end
+
+      it "enqueues CreateDubbedVideoJob" do
+        expect(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later).with(task.id)
+        described_class.new.perform(task.id)
+      end
+    end
+
+    context "when the mix script fails" do
+      before do
+        stub_dubbing_workspace
+        allow(Open3).to receive(:capture3).and_return([ "60.0", "boom", double(success?: false) ])
+        allow(File).to receive(:write)
+        allow_any_instance_of(described_class).to receive(:merge_segments_for_tts).and_return([])
+      end
+
+      it "does not persist segment changes if mixing fails" do
+        original_segments = task.segments
+        expect { described_class.new.perform(task.id) }.to raise_error(RuntimeError)
+        expect(task.reload.segments).to eq(original_segments)
       end
     end
   end

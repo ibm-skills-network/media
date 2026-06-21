@@ -2,11 +2,11 @@ module DubbingPipeline
   class ExtractAudioJob < ApplicationJob
     queue_as :gpu
 
-    class InvalidSourceError < StandardError; end
-
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
-      task&.update!(status: "failed", error_message: exception.message)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
     end
 
     def perform(task_id)
@@ -15,39 +15,27 @@ module DubbingPipeline
 
       task.processing!
 
-      begin
-        validate_source!(task.video_url)
-      rescue InvalidSourceError => e
-        task.update!(status: "failed", error_message: e.message)
-        return
+      DubbingWorkspace.with("#{task_id}-extract") do |ws|
+        audio_path = ws.path("audio.wav")
+        source_video_path = ws.path("source.mp4")
+
+        # -protocol_whitelist must come before -i to apply to the input. It blocks
+        # file://, concat:, pipe:, etc. even when a redirect or playlist asks for them.
+        _stdout, stderr, status = Open3.capture3(
+          "ffmpeg", "-y",
+          "-protocol_whitelist", "https,tls,tcp",
+          "-i", task.video_url,
+          "-map", "0:a:0", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", audio_path,
+          "-map", "0:v:0", "-c:v", "copy", "-an", source_video_path
+        )
+
+        raise "ffmpeg failed: #{stderr}" unless status.success?
+
+        ws.attach(task.audio, "audio.wav", content_type: "audio/wav")
+        ws.attach(task.source_video, "source.mp4", content_type: "video/mp4")
       end
 
-      output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s)
-      FileUtils.mkdir_p(output_dir)
-
-      audio_path = output_dir.join("audio.wav").to_s
-      source_video_path = output_dir.join("source.mp4").to_s
-
-      # Split source into audio.wav (44.1kHz stereo PCM) and a silent source.mp4 in one pass
-      _stdout, stderr, status = Open3.capture3(
-        "ffmpeg", "-y",
-        "-i", task.video_url,
-        "-map", "0:a:0", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", audio_path,
-        "-map", "0:v:0", "-c:v", "copy", "-an", source_video_path
-      )
-
-      raise "ffmpeg failed: #{stderr}" unless status.success?
-
-      task.update!(audio_path: audio_path, source_video_path: source_video_path)
       DubbingPipeline::SeparateAudioJob.perform_later(task_id)
-    end
-
-    private
-
-    def validate_source!(source)
-      raise InvalidSourceError, "video_url is blank" if source.to_s.strip.empty?
-      return if source.start_with?("http://", "https://")
-      raise InvalidSourceError, "Local video not found: #{source}" unless File.exist?(source)
     end
   end
 end

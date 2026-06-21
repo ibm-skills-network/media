@@ -4,7 +4,9 @@ module DubbingPipeline
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
-      task&.update!(status: "failed", error_message: exception.message)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
     end
 
     def perform(task_id)
@@ -46,7 +48,7 @@ module DubbingPipeline
         }.to_json
       end
 
-      raise "GPT chapters failed: #{response.status} #{response.body}" unless response.success?
+      raise "GPT chapters failed: HTTP #{response.status}" unless response.success?
 
       parsed = JSON.parse(JSON.parse(response.body)["choices"][0]["message"]["content"])
       chapters = (parsed["chapters"] || []).map do |ch|

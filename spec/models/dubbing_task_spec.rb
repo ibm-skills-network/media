@@ -32,6 +32,37 @@ RSpec.describe DubbingTask, type: :model do
       expect(task).not_to be_valid
       expect(task.errors[:language].join).to match(/cannot dub to the source/)
     end
+
+    describe "video_url scheme validation" do
+      it "accepts http and https URLs" do
+        expect(build(:dubbing_task, video_url: "http://example.com/v.mp4")).to be_valid
+        expect(build(:dubbing_task, video_url: "https://example.com/v.mp4")).to be_valid
+      end
+
+      it "rejects file:// URLs that could exfiltrate local files via ffmpeg" do
+        task = build(:dubbing_task, video_url: "file:///etc/passwd")
+        expect(task).not_to be_valid
+        expect(task.errors[:video_url].join).to match(/http\(s\) URL/)
+      end
+
+      it "rejects ffmpeg-specific pseudo-protocols like concat: and pipe:" do
+        %w[concat:a|b pipe:0 tcp://h:1 data:text/plain;base64,X].each do |bad|
+          task = build(:dubbing_task, video_url: bad)
+          expect(task).not_to be_valid, "expected #{bad.inspect} to be rejected"
+        end
+      end
+
+      it "rejects http URLs that have no host" do
+        task = build(:dubbing_task, video_url: "http:///path")
+        expect(task).not_to be_valid
+      end
+
+      it "rejects unparseable URLs" do
+        task = build(:dubbing_task, video_url: "http://[::bad")
+        expect(task).not_to be_valid
+        expect(task.errors[:video_url].join).to match(/not a valid URL/)
+      end
+    end
   end
 
   describe "#lang_code" do
@@ -119,6 +150,39 @@ RSpec.describe DubbingTask, type: :model do
     it "falls back to neutral for unknown prosody" do
       task = build(:dubbing_task)
       expect(task.voice_settings_for("unknown")).to eq(DubbingTask::VOICE_STYLE_PARAMS["neutral"])
+    end
+  end
+
+  describe "#purge_pipeline_artifacts!" do
+    let(:task) { create(:dubbing_task, :with_audio, :with_vocals) }
+
+    it "purges every attached intermediate" do
+      expect(task.audio).to be_attached
+      expect(task.vocals).to be_attached
+      allow(DubbingHlsUploader).to receive(:purge)
+
+      task.purge_pipeline_artifacts!(include_hls: false)
+
+      expect(task.reload.audio).not_to be_attached
+      expect(task.reload.vocals).not_to be_attached
+    end
+
+    it "skips already-detached attachments without error" do
+      task = create(:dubbing_task)
+      allow(DubbingHlsUploader).to receive(:purge)
+      expect { task.purge_pipeline_artifacts!(include_hls: false) }.not_to raise_error
+    end
+
+    it "purges the HLS prefix when include_hls is true" do
+      task = create(:dubbing_task)
+      expect(DubbingHlsUploader).to receive(:purge).with(task.id)
+      task.purge_pipeline_artifacts!(include_hls: true)
+    end
+
+    it "does not touch the HLS prefix when include_hls is false" do
+      task = create(:dubbing_task)
+      expect(DubbingHlsUploader).not_to receive(:purge)
+      task.purge_pipeline_artifacts!(include_hls: false)
     end
   end
 end

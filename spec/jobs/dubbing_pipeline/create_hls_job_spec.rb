@@ -1,11 +1,10 @@
 require "rails_helper"
 
 RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
-  let(:task) do
-    create(:dubbing_task,
-      dubbed_video_path: "/tmp/dubbing/1/dubbed.mp4",
-      audio_path:        "/tmp/dubbing/1/audio.wav",
-      dubbed_audio_path: "/tmp/dubbing/1/dubbed.mp3",
+  # Build the task before stubbing File.* so the factory's attachment writes
+  # can actually hit ActiveStorage's disk service.
+  let!(:task) do
+    create(:dubbing_task, :with_audio, :with_dubbed_audio, :with_dubbed_video,
       segments: [
         { "start" => 0.0, "end" => 1.0, "text" => "Hi", "translated_text" => "Hola", "speaker" => "SPEAKER_0" }
       ],
@@ -14,20 +13,30 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
   end
 
   before do
+    stub_dubbing_workspace
     # ffprobe duration + every ffmpeg HLS pass all funnel through Open3.capture3.
     allow(Open3).to receive(:capture3).and_return([ "10.0", "", double(success?: true) ])
     allow(FileUtils).to receive(:mkdir_p)
     allow(File).to receive(:write)
     allow(File).to receive(:open).and_yield(StringIO.new)
+    allow(DubbingHlsUploader).to receive(:upload_dir).and_return("https://cos.example.com/dubbing/#{task.id}/hls/master.m3u8")
     allow(DubbingPipeline::CleanupJob).to receive(:perform_later)
   end
 
   describe "#perform" do
-    it "sets hls_path and hands off to CleanupJob" do
+    it "sets hls_path to the uploaded master.m3u8 URL" do
       described_class.new.perform(task.id)
-      task.reload
-      expect(task.hls_path).to end_with("master.m3u8")
+      expect(task.reload.hls_path).to end_with("master.m3u8")
+    end
+
+    it "hands off to CleanupJob" do
+      described_class.new.perform(task.id)
       expect(DubbingPipeline::CleanupJob).to have_received(:perform_later).with(task.id)
+    end
+
+    it "uploads the HLS dir through DubbingHlsUploader" do
+      described_class.new.perform(task.id)
+      expect(DubbingHlsUploader).to have_received(:upload_dir).with(anything, task.id)
     end
 
     context "when the target language equals the source language" do

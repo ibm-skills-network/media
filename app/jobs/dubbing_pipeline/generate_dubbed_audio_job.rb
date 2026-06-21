@@ -10,70 +10,75 @@ module DubbingPipeline
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
-      task&.update!(status: "failed", error_message: exception.message)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
     end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
       return if task.failed? || task.success?
 
-      output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s).to_s
+      DubbingWorkspace.with("#{task_id}-mix") do |ws|
+        audio_path = ws.fetch(task.audio, "audio.wav")
+        vocals_path = ws.fetch(task.vocals, "vocals.wav")
+        background_path = ws.fetch(task.background, "background.wav")
 
-      merged_segments = merge_segments_for_tts(task.segments)
-      total_s = probe_duration_seconds(task.background_path)
+        merged_segments = merge_segments_for_tts(task.segments)
+        total_s = probe_duration_seconds(background_path)
 
-      tts_files = []
-      merged_segments.each_with_index do |seg, i|
-        next if seg["translated_text"].to_s.strip.empty?
+        tts_files = []
+        merged_segments.each_with_index do |seg, i|
+          next if seg["translated_text"].to_s.strip.empty?
 
-        voice_id = task.voice_for(seg["speaker"])
-        sanitized_text = sanitize_for_tts(seg["translated_text"])
-        slot_s = compute_slot_seconds(merged_segments, i, total_s)
-        next if slot_s <= 0.1
+          voice_id = task.voice_for(seg["speaker"])
+          sanitized_text = sanitize_for_tts(seg["translated_text"])
+          slot_s = compute_slot_seconds(merged_segments, i, total_s)
+          next if slot_s <= 0.1
 
-        clip_path, final_text = generate_tts_with_retranslation(
-          text: sanitized_text,
-          original_text: seg["text"],
-          voice_id: voice_id,
-          voice_settings: task.voice_settings_for(seg["prosody"]),
-          slot_s: slot_s,
-          target_lang: task.language,
-          output_dir: output_dir,
-          index: i
+          clip_path, final_text = generate_tts_with_retranslation(
+            text: sanitized_text,
+            original_text: seg["text"],
+            voice_id: voice_id,
+            voice_settings: task.voice_settings_for(seg["prosody"]),
+            slot_s: slot_s,
+            target_lang: task.language,
+            output_dir: ws.dir,
+            index: i
+          )
+
+          merged_segments[i]["translated_text"] = final_text
+          tts_files << { index: i, path: clip_path }
+        end
+
+        segments_file = ws.path("mix_segments.json")
+        tts_files_path = ws.path("mix_tts_files.json")
+        File.write(segments_file, merged_segments.to_json)
+        File.write(tts_files_path, tts_files.to_json)
+
+        _stdout, stderr, status = Open3.capture3(
+          "python3", Rails.root.join("script/dubbing/mix_dubbed_audio.py").to_s,
+          "--segments-file", segments_file,
+          "--tts-files-file", tts_files_path,
+          "--background-path", background_path,
+          "--vocals-path", vocals_path,
+          "--original-audio-path", audio_path,
+          "--output-dir", ws.dir
         )
 
-        merged_segments[i]["translated_text"] = final_text
-        tts_files << { index: i, path: clip_path }
+        raise "Audio mixing failed: #{stderr}" unless status.success?
+
+        # Persist after mixing succeeds; otherwise a retry would see partially-merged state.
+        task.update!(segments: merged_segments)
+        ws.attach(task.dubbed_audio, "dubbed.mp3", content_type: "audio/mpeg")
       end
-
-      task.update!(segments: merged_segments)
-
-      segments_file = File.join(output_dir, "mix_segments.json")
-      tts_files_path = File.join(output_dir, "mix_tts_files.json")
-      File.write(segments_file, merged_segments.to_json)
-      File.write(tts_files_path, tts_files.to_json)
-
-      _stdout, stderr, status = Open3.capture3(
-        "python3", Rails.root.join("script/dubbing/mix_dubbed_audio.py").to_s,
-        "--segments-file", segments_file,
-        "--tts-files-file", tts_files_path,
-        "--background-path", task.background_path,
-        "--vocals-path", task.vocals_path,
-        "--original-audio-path", task.audio_path,
-        "--output-dir", output_dir
-      )
-
-      raise "Audio mixing failed: #{stderr}" unless status.success?
-
-      dubbed_audio_path = File.join(output_dir, "dubbed.mp3")
-      task.update!(dubbed_audio_path: dubbed_audio_path)
 
       DubbingPipeline::CreateDubbedVideoJob.perform_later(task_id)
     end
 
     private
 
-    # Combine short adjacent same speaker segments so TTS has longer phrases to voice naturally
+    # Combine adjacent same-speaker segments so TTS gets longer phrases to voice naturally.
     def merge_segments_for_tts(segments)
       return [] if segments.empty?
 
@@ -89,7 +94,7 @@ module DubbingPipeline
         gap = seg["start"] - current["end"]
         merged_duration = seg["end"] - current["start"]
         same_speaker = seg["speaker"] == current["speaker"]
-        # Doesn't merge across sentence boundaries b/c TTS needs a pause between sentences
+        # Don't merge across sentence boundaries — TTS needs the pause.
         ends_with_sentence = current["translated_text"].to_s.rstrip[-1, 1].to_s.match?(/[.!?;:]/)
 
         if same_speaker && gap <= MAX_GAP_S && merged_duration <= MAX_MERGED_DURATION_S && !ends_with_sentence
@@ -143,13 +148,13 @@ module DubbingPipeline
         write_tts_clip(current_text, voice_id, clip_path, voice_settings)
         clip_ms = tts_duration_ms(clip_path)
 
-        # If the clip fits, or just a speedup can rescue it, we return since Python handles the speedup
+        # Accept if it fits, or if a modest speedup can rescue it (Python applies the speedup).
         return [ clip_path, current_text ] if clip_ms <= slot_ms || (clip_ms.to_f / slot_ms) <= MAX_SPEED
 
         current_text = retranslate_shorter(current_text, original_text, slot_s, target_lang)
       end
 
-      # Final attempt with last retranslation; Python will speed-up or trim if it's still long
+      # Out of retries — let Python speed up or trim whatever we ended with.
       write_tts_clip(current_text, voice_id, clip_path, voice_settings)
       [ clip_path, current_text ]
     end
@@ -169,7 +174,7 @@ module DubbingPipeline
           voice_settings: voice_settings
         }.to_json
       end
-      raise "ElevenLabs failed: #{response.status} #{response.body}" unless response.success?
+      raise "ElevenLabs failed: HTTP #{response.status}" unless response.success?
       File.binwrite(clip_path, response.body)
     end
 
@@ -232,7 +237,7 @@ module DubbingPipeline
           ]
         }.to_json
       end
-      raise "GPT retranslate failed: #{response.status} #{response.body}" unless response.success?
+      raise "GPT retranslate failed: HTTP #{response.status}" unless response.success?
 
       JSON.parse(response.body)["choices"][0]["message"]["content"].strip
     end

@@ -4,45 +4,50 @@ module DubbingPipeline
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
-      task&.update!(status: "failed", error_message: exception.message)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
     end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
       return if task.failed? || task.success?
 
-      mp3_path = Rails.root.join("tmp", "dubbing", task_id.to_s, "transcribe.mp3").to_s
+      api_segments = DubbingWorkspace.with("#{task_id}-transcribe") do |ws|
+        audio_path = ws.fetch(task.audio, "audio.wav")
+        mp3_path = ws.path("transcribe.mp3")
 
-      # Downsample to 16kHz mono mp3 to shrink the upload, transcription API doesn't need more
-      _stdout, stderr, status = Open3.capture3(
-        "ffmpeg", "-y",
-        "-i", task.audio_path,
-        "-ar", "16000",
-        "-ac", "1",
-        "-b:a", "64k",
-        mp3_path
-      )
-      raise "ffmpeg compression failed: #{stderr}" unless status.success?
+        # Downsample to 16kHz mono mp3 — shrinks the upload, and the transcription API doesn't need more.
+        _stdout, stderr, status = Open3.capture3(
+          "ffmpeg", "-y",
+          "-i", audio_path,
+          "-ar", "16000",
+          "-ac", "1",
+          "-b:a", "64k",
+          mp3_path
+        )
+        raise "ffmpeg compression failed: #{stderr}" unless status.success?
 
-      conn = Faraday.new do |f|
-        f.request :multipart
-        f.options.timeout = 300
-        f.options.open_timeout = 10
+        conn = Faraday.new do |f|
+          f.request :multipart
+          f.options.timeout = 300
+          f.options.open_timeout = 10
+        end
+
+        file = Faraday::Multipart::FilePart.new(mp3_path, "audio/mpeg")
+        response = conn.post("https://api.openai.com/v1/audio/transcriptions") do |req|
+          req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
+          req.body = {
+            file: file,
+            model: "gpt-4o-transcribe-diarize",
+            response_format: "diarized_json",
+            chunking_strategy: "auto"
+          }
+        end
+        raise "Transcription failed: HTTP #{response.status}" unless response.success?
+
+        JSON.parse(response.body)["segments"] || []
       end
-
-      file = Faraday::Multipart::FilePart.new(mp3_path, "audio/mpeg")
-      response = conn.post("https://api.openai.com/v1/audio/transcriptions") do |req|
-        req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
-        req.body = {
-          file: file,
-          model: "gpt-4o-transcribe-diarize",
-          response_format: "diarized_json",
-          chunking_strategy: "auto"
-        }
-      end
-      raise "Transcription failed: #{response.status} #{response.body}" unless response.success?
-
-      api_segments = JSON.parse(response.body)["segments"] || []
 
       speaker_id_map = {}
       raw_segments = api_segments.filter_map do |seg|
@@ -111,7 +116,7 @@ module DubbingPipeline
         }.to_json
       end
 
-      raise "GPT sentence-merge failed: #{response.status} #{response.body}" unless response.success?
+      raise "GPT sentence-merge failed: HTTP #{response.status}" unless response.success?
 
       parsed = JSON.parse(JSON.parse(response.body)["choices"][0]["message"]["content"])
       data = parsed["sentences"]
@@ -119,7 +124,7 @@ module DubbingPipeline
         Rails.logger.warn("[TranscribeJob] GPT returned no sentences array for merge: #{parsed.inspect[0, 200]}")
         return segments
       end
-      # Pull the original fragment index out of GPT's [idx:time] markers
+      # Pull the original fragment index out of GPT's [idx:time] markers.
       marker_pattern = /\[(\d+):([\d.]+)\]/
 
       start_indices = data.map do |item|
@@ -131,7 +136,7 @@ module DubbingPipeline
         text = item["text"].to_s.strip
         next if text.empty?
 
-        # Each merged sentence spans from its start marker up to (but not including) the next one
+        # A merged sentence spans from its start marker up to (but not including) the next one.
         src_start_idx = start_indices[i] || 0
         next_src_start_idx = start_indices[i + 1] || segments.length
         last_src_idx = [ next_src_start_idx - 1, src_start_idx ].max

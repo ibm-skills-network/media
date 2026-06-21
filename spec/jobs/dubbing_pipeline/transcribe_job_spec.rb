@@ -1,7 +1,7 @@
 require "rails_helper"
 
 RSpec.describe DubbingPipeline::TranscribeJob, type: :job do
-  let(:task) { create(:dubbing_task, audio_path: "/tmp/dubbing/1/audio.wav") }
+  let(:task) { create(:dubbing_task, :with_audio) }
 
   let(:transcribe_response) do
     instance_double(Faraday::Response, success?: true, body: {
@@ -22,6 +22,7 @@ RSpec.describe DubbingPipeline::TranscribeJob, type: :job do
   let(:conn) { instance_double(Faraday::Connection) }
 
   before do
+    stub_dubbing_workspace
     allow(Open3).to receive(:capture3).and_return([ "", "", double(success?: true) ])
     allow(Faraday).to receive(:new).and_return(conn)
     allow(conn).to receive(:post).and_return(transcribe_response, merge_response)
@@ -59,8 +60,9 @@ RSpec.describe DubbingPipeline::TranscribeJob, type: :job do
         instance_double(Faraday::Response, success?: false, status: 500, body: "boom")
       end
 
-      it "raises" do
-        expect { described_class.new.perform(task.id) }.to raise_error(RuntimeError, /Transcription failed/)
+      it "raises without leaking the response body" do
+        expect { described_class.new.perform(task.id) }
+          .to raise_error(RuntimeError, /Transcription failed: HTTP 500\z/)
       end
     end
 

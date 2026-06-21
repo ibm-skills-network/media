@@ -2,15 +2,14 @@ require "rails_helper"
 
 RSpec.describe DubbingPipeline::AnnotateAudioJob, type: :job do
   let(:task) do
-    create(:dubbing_task,
-      vocals_path: "/tmp/dubbing/1/vocals.wav",
+    create(:dubbing_task, :with_vocals,
       segments: [ { "start" => 0.0, "end" => 1.0, "text" => "hi", "speaker" => "SPEAKER_0" } ]
     )
   end
 
   describe "#perform" do
     before do
-      allow(FileUtils).to receive(:mkdir_p)
+      stub_dubbing_workspace
       allow(File).to receive(:write)
     end
 

@@ -4,28 +4,32 @@ module DubbingPipeline
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
-      task&.update!(status: "failed", error_message: exception.message)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
     end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
       return if task.failed? || task.success?
 
-      output_dir = Rails.root.join("tmp", "dubbing", task_id.to_s)
-      FileUtils.mkdir_p(output_dir)
+      annotated = DubbingWorkspace.with("#{task_id}-annotate") do |ws|
+        vocals_path = ws.fetch(task.vocals, "vocals.wav")
+        segments_in_path = ws.path("segments_in.json")
+        File.write(segments_in_path, task.segments.to_json)
 
-      segments_in_path = output_dir.join("segments_in.json").to_s
-      File.write(segments_in_path, task.segments.to_json)
+        stdout, stderr, status = Open3.capture3(
+          "python3", Rails.root.join("script/dubbing/annotate_audio.py").to_s,
+          vocals_path,
+          "--segments-file", segments_in_path,
+          "--output-dir", ws.dir
+        )
+        raise "Audio annotation failed: #{stderr}" unless status.success?
 
-      stdout, stderr, status = Open3.capture3(
-        "python3", Rails.root.join("script/dubbing/annotate_audio.py").to_s,
-        task.vocals_path,
-        "--segments-file", segments_in_path,
-        "--output-dir", output_dir.to_s
-      )
-      raise "Audio annotation failed: #{stderr}" unless status.success?
+        JSON.parse(stdout)
+      end
 
-      task.update!(segments: JSON.parse(stdout))
+      task.update!(segments: annotated)
       DubbingPipeline::IdentifyChaptersJob.perform_later(task_id)
     end
   end

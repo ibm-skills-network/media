@@ -3,44 +3,31 @@ require "rails_helper"
 RSpec.describe DubbingPipeline::CleanupJob, type: :job do
   let(:task) do
     create(:dubbing_task,
-      audio_path:        "/tmp/dubbing/1/audio.wav",
-      source_video_path: "/tmp/dubbing/1/source.mp4",
-      vocals_path:       "/tmp/dubbing/1/vocals.wav",
-      background_path:   "/tmp/dubbing/1/background.wav",
-      dubbed_audio_path: "/tmp/dubbing/1/dubbed.mp3",
-      dubbed_video_path: "/tmp/dubbing/1/dubbed.mp4",
-      hls_path:          "/tmp/dubbing/1/hls/master.m3u8"
+      :with_audio, :with_source_video, :with_vocals, :with_background,
+      :with_dubbed_audio, :with_dubbed_video,
+      hls_path: "https://cos.example.com/dubbing/1/hls/master.m3u8"
     )
   end
 
-  before do
-    allow(FileUtils).to receive(:rm_f)
-    allow(Dir).to receive(:glob).and_return([ "/tmp/dubbing/1/tts_0.mp3", "/tmp/dubbing/1/tts_1.mp3" ])
-  end
-
   describe "#perform" do
-    it "deletes every intermediate artifact" do
-      described_class::INTERMEDIATE_BASENAMES.each do |name|
-        expect(FileUtils).to receive(:rm_f).with(have_attributes(to_s: end_with(name)))
+    before { allow(DubbingHlsUploader).to receive(:purge) }
+
+    it "purges every intermediate attachment" do
+      DubbingTask::INTERMEDIATE_ATTACHMENTS.each do |name|
+        expect(task.public_send(name)).to be_attached
       end
-      described_class.new.perform(task.id)
-    end
 
-    it "deletes the per-segment tts clips" do
-      expect(FileUtils).to receive(:rm_f).with("/tmp/dubbing/1/tts_0.mp3")
-      expect(FileUtils).to receive(:rm_f).with("/tmp/dubbing/1/tts_1.mp3")
       described_class.new.perform(task.id)
-    end
 
-    it "nulls out the path columns that pointed to deleted files" do
-      described_class.new.perform(task.id)
       task.reload
-      expect(task.audio_path).to be_nil
-      expect(task.source_video_path).to be_nil
-      expect(task.vocals_path).to be_nil
-      expect(task.background_path).to be_nil
-      expect(task.dubbed_audio_path).to be_nil
-      expect(task.dubbed_video_path).to be_nil
+      DubbingTask::INTERMEDIATE_ATTACHMENTS.each do |name|
+        expect(task.public_send(name)).not_to be_attached
+      end
+    end
+
+    it "preserves the HLS prefix since it's the published deliverable" do
+      expect(DubbingHlsUploader).not_to receive(:purge)
+      described_class.new.perform(task.id)
     end
 
     it "preserves hls_path since the HLS bundle is the deliverable" do
@@ -54,9 +41,9 @@ RSpec.describe DubbingPipeline::CleanupJob, type: :job do
     end
 
     context "when the task is already in a terminal state" do
-      it "returns without touching the filesystem" do
+      it "returns without purging" do
         task.update!(status: "failed")
-        expect(FileUtils).not_to receive(:rm_f)
+        expect_any_instance_of(DubbingTask).not_to receive(:purge_pipeline_artifacts!)
         described_class.new.perform(task.id)
       end
     end
