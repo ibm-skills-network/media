@@ -15,16 +15,17 @@ module DubbingPipeline
 
       api_segments = DubbingWorkspace.with("#{task_id}-transcribe") do |ws|
         audio_path = ws.fetch(task.audio, "audio.wav")
-        mp3_path = ws.path("transcribe.mp3")
+        ogg_path = ws.path("transcribe.ogg")
 
-        # Downsample to 16kHz mono mp3 — shrinks the upload, and the transcription API doesn't need more.
+        # Using Opus instead of mp3 because the worker ffmpeg is built without libmp3lame.
         _stdout, stderr, status = Open3.capture3(
           "ffmpeg", "-y",
           "-i", audio_path,
           "-ar", "16000",
           "-ac", "1",
-          "-b:a", "64k",
-          mp3_path
+          "-c:a", "libopus",
+          "-b:a", "32k",
+          ogg_path
         )
         raise "ffmpeg compression failed: #{stderr}" unless status.success?
 
@@ -34,7 +35,7 @@ module DubbingPipeline
           f.options.open_timeout = 10
         end
 
-        file = Faraday::Multipart::FilePart.new(mp3_path, "audio/mpeg")
+        file = Faraday::Multipart::FilePart.new(ogg_path, "audio/ogg")
         response = conn.post("https://api.openai.com/v1/audio/transcriptions") do |req|
           req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
           req.body = {
