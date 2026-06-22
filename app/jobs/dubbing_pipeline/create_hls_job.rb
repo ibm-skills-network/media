@@ -16,7 +16,7 @@ module DubbingPipeline
       hls_master_url = DubbingWorkspace.with("#{task_id}-hls") do |ws|
         dubbed_video_path = ws.fetch(task.dubbed_video, "dubbed.mp4")
         audio_path = ws.fetch(task.audio, "audio.wav")
-        dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.mp3")
+        dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.m4a")
 
         # Stage everything flat in hls_dir so the COS prefix mirrors it 1:1 — the
         # player resolves segments, subtitles, and cos_player.json as siblings of master.m3u8.

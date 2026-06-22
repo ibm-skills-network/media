@@ -88,10 +88,10 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
         allow(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later)
       end
 
-      it "attaches dubbed.mp3 only after the mix script succeeds" do
+      it "attaches dubbed.m4a only after the mix script succeeds" do
         described_class.new.perform(task.id)
         filenames = workspaces.first.attached.map { |a| a[:filename] }
-        expect(filenames).to eq([ "dubbed.mp3" ])
+        expect(filenames).to eq([ "dubbed.m4a" ])
       end
 
       it "enqueues CreateDubbedVideoJob" do

@@ -70,7 +70,7 @@ module DubbingPipeline
 
         # Persist after mixing succeeds; otherwise a retry would see partially-merged state.
         task.update!(segments: merged_segments)
-        ws.attach(task.dubbed_audio, "dubbed.mp3", content_type: "audio/mpeg")
+        ws.attach(task.dubbed_audio, "dubbed.m4a", content_type: "audio/mp4")
       end
 
       DubbingPipeline::CreateDubbedVideoJob.perform_later(task_id)

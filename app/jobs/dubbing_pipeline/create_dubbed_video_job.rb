@@ -15,7 +15,7 @@ module DubbingPipeline
 
       DubbingWorkspace.with("#{task_id}-video") do |ws|
         source_path = ws.fetch(task.source_video, "source.mp4")
-        dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.mp3")
+        dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.m4a")
         dubbed_video_path = ws.path("dubbed.mp4")
 
         # Mux silent source video with dubbed audio; video stream is copied as-is.

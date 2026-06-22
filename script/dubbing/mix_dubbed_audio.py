@@ -78,12 +78,15 @@ def adjust_speed(audio, speed, output_dir, segment_index):
     if abs(speed - 1.0) < 0.01:
         return audio
 
-    temp_in = os.path.join(output_dir, f"_speed_in_{segment_index}.mp3")
-    temp_out = os.path.join(output_dir, f"_speed_out_{segment_index}.mp3")
+    # WAV intermediates instead of mp3 — the worker ffmpeg is built without
+    # libmp3lame, and WAV is lossless so a tempo-only filter round trip
+    # doesn't degrade quality across multiple speed passes.
+    temp_in = os.path.join(output_dir, f"_speed_in_{segment_index}.wav")
+    temp_out = os.path.join(output_dir, f"_speed_out_{segment_index}.wav")
     log_path = os.path.join(output_dir, f"_speed_log_{segment_index}.txt")
 
     try:
-        audio.export(temp_in, format="mp3")
+        audio.export(temp_in, format="wav")
         filter_str = ",".join(build_atempo_chain(speed))
         run_subprocess_logged(
             ["ffmpeg", "-y", "-i", temp_in, "-filter:a", filter_str, temp_out],
@@ -91,7 +94,7 @@ def adjust_speed(audio, speed, output_dir, segment_index):
             timeout_s=FFMPEG_SPEED_TIMEOUT_S,
             error_prefix=f"ffmpeg atempo (segment {segment_index}, speed={speed}, filter={filter_str})",
         )
-        return AudioSegment.from_mp3(temp_out)
+        return AudioSegment.from_wav(temp_out)
     finally:
         for path in (temp_in, temp_out, log_path):
             try:
@@ -432,7 +435,10 @@ def main():
     with open(graph_path, "w") as f:
         f.write(graph)
 
-    output_path = os.path.join(args.output_dir, "dubbed.mp3")
+    # AAC in an .m4a container — the native ffmpeg AAC encoder is in every
+    # build, and the downstream jobs re-encode this to AAC for HLS anyway,
+    # so we save a transcode by emitting AAC directly here.
+    output_path = os.path.join(args.output_dir, "dubbed.m4a")
     mix_log_path = os.path.join(args.output_dir, "ffmpeg_mix.log")
     run_subprocess_logged(
         [
@@ -444,7 +450,7 @@ def main():
             "-map", "[out]",
             "-ar", str(bg_sr),
             "-ac", str(bg_ch),
-            "-c:a", "libmp3lame",
+            "-c:a", "aac",
             "-b:a", "192k",
             output_path,
         ],
