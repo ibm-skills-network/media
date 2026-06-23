@@ -1,7 +1,6 @@
 class DubbingTask < ApplicationRecord
-  # Pipeline intermediates. Jobs download these, run ffmpeg/Python locally, and re-attach
-  # their outputs so the next job — on any worker pod — can pick them up. CleanupJob
-  # purges them once HLS is uploaded.
+  # Pipeline intermediates, each job downloads what it needs, runs ffmpeg/Python locally,
+  # and re-attaches its outputs so the next job (on any worker pod) can find them
   has_one_attached :audio
   has_one_attached :source_video
   has_one_attached :vocals
@@ -107,9 +106,7 @@ class DubbingTask < ApplicationRecord
     VOICE_STYLE_PARAMS[prosody] || VOICE_STYLE_PARAMS["neutral"]
   end
 
-  # Purges intermediates and (optionally) the HLS prefix in COS. Called by CleanupJob on
-  # success and by each job's sidekiq_retries_exhausted hook on terminal failure — leaving
-  # artifacts behind would leak PII.
+  # Drops intermediates (and optionally the HLS prefix) so failed runs don't leak PII
   def purge_pipeline_artifacts!(include_hls:)
     INTERMEDIATE_ATTACHMENTS.each do |name|
       attachment = public_send(name)
@@ -125,8 +122,7 @@ class DubbingTask < ApplicationRecord
     errors.add(:language, "cannot dub to the source language (#{SOURCE_LANG_CODE})")
   end
 
-  # Reject anything ffmpeg's `-i` might read as a non-HTTP protocol (file://, concat:,
-  # pipe:, ...) or an SSRF target with no host.
+  # Block anything ffmpeg's `-i` could read as a non-HTTP protocol (file://, concat:, pipe:, ...)
   def video_url_is_http
     return if video_url.blank?
     uri = URI.parse(video_url)

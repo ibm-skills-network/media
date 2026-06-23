@@ -1,7 +1,6 @@
 class DropDubbingPathColumns < ActiveRecord::Migration[8.1]
-  # Intermediates moved to ActiveStorage attachments so jobs on different worker pods
-  # can find each other's outputs. hls_path stays — HLS is uploaded to a controlled COS
-  # prefix, not an attachment.
+  # Intermediates moved to ActiveStorage so jobs on different worker pods can find each
+  # other's outputs, hls_path stays since HLS goes to a controlled COS prefix, not AS
   def change
     remove_column :dubbing_tasks, :audio_path, :string
     remove_column :dubbing_tasks, :source_video_path, :string

@@ -68,7 +68,7 @@ module DubbingPipeline
 
         raise "Audio mixing failed: #{stderr}" unless status.success?
 
-        # Persist after mixing succeeds; otherwise a retry would see partially-merged state.
+        # Persist only after mixing succeeds, otherwise a retry would see half-merged state
         task.update!(segments: merged_segments)
         ws.attach(task.dubbed_audio, "dubbed.m4a", content_type: "audio/mp4")
       end
@@ -94,7 +94,7 @@ module DubbingPipeline
         gap = seg["start"] - current["end"]
         merged_duration = seg["end"] - current["start"]
         same_speaker = seg["speaker"] == current["speaker"]
-        # Don't merge across sentence boundaries — TTS needs the pause.
+        # Don't merge across sentence boundaries, TTS needs the pause
         ends_with_sentence = current["translated_text"].to_s.rstrip[-1, 1].to_s.match?(/[.!?;:]/)
 
         if same_speaker && gap <= MAX_GAP_S && merged_duration <= MAX_MERGED_DURATION_S && !ends_with_sentence
@@ -154,7 +154,7 @@ module DubbingPipeline
         current_text = retranslate_shorter(current_text, original_text, slot_s, target_lang)
       end
 
-      # Out of retries — let Python speed up or trim whatever we ended with.
+      # Out of retries, let Python speed up or trim whatever we ended with
       write_tts_clip(current_text, voice_id, clip_path, voice_settings)
       [ clip_path, current_text ]
     end

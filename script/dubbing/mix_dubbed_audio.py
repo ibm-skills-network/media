@@ -78,9 +78,8 @@ def adjust_speed(audio, speed, output_dir, segment_index):
     if abs(speed - 1.0) < 0.01:
         return audio
 
-    # WAV intermediates instead of mp3 — the worker ffmpeg is built without
-    # libmp3lame, and WAV is lossless so a tempo-only filter round trip
-    # doesn't degrade quality across multiple speed passes.
+    # WAV instead of mp3, the worker ffmpeg has no libmp3lame, and WAV is lossless
+    # so multiple speed passes don't compound encoder loss
     temp_in = os.path.join(output_dir, f"_speed_in_{segment_index}.wav")
     temp_out = os.path.join(output_dir, f"_speed_out_{segment_index}.wav")
     log_path = os.path.join(output_dir, f"_speed_log_{segment_index}.txt")
@@ -435,9 +434,8 @@ def main():
     with open(graph_path, "w") as f:
         f.write(graph)
 
-    # AAC in an .m4a container — the native ffmpeg AAC encoder is in every
-    # build, and the downstream jobs re-encode this to AAC for HLS anyway,
-    # so we save a transcode by emitting AAC directly here.
+    # AAC in m4a, ffmpeg's native AAC encoder is in every build, and downstream
+    # HLS re-encodes to AAC anyway so we skip a transcode by emitting it now
     output_path = os.path.join(args.output_dir, "dubbed.m4a")
     mix_log_path = os.path.join(args.output_dir, "ffmpeg_mix.log")
     run_subprocess_logged(

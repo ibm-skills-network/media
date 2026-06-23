@@ -6,7 +6,7 @@ module DubbingPipeline
       task = DubbingTask.find_by(id: msg["args"].first)
       next unless task
       task.update!(status: "failed", error_message: exception.message)
-      # Keep HLS so operators can inspect what CreateHlsJob already published.
+      # Keep HLS so we can inspect what CreateHlsJob published
       task.purge_pipeline_artifacts!(include_hls: false)
     end
 
@@ -14,7 +14,7 @@ module DubbingPipeline
       task = DubbingTask.find(task_id)
       return if task.failed? || task.success?
 
-      # Keep HLS — that's the published output the player streams from.
+      # Keep HLS, that's the deliverable the player streams from
       task.purge_pipeline_artifacts!(include_hls: false)
       task.update!(status: "success")
     end

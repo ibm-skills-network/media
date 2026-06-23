@@ -18,8 +18,8 @@ module DubbingPipeline
         audio_path = ws.fetch(task.audio, "audio.wav")
         dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.m4a")
 
-        # Stage everything flat in hls_dir so the COS prefix mirrors it 1:1 — the
-        # player resolves segments, subtitles, and cos_player.json as siblings of master.m3u8.
+        # Flat layout in hls_dir so the COS prefix mirrors it 1:1, the player resolves
+        # segments, subtitles, and cos_player.json as siblings of master.m3u8
         hls_dir = File.join(ws.dir, "hls")
         FileUtils.mkdir_p(hls_dir)
 
@@ -40,7 +40,7 @@ module DubbingPipeline
         write_subtitles(subtitle_segments, srt_src, format: :srt, use_translated: false)
         write_subtitles(subtitle_segments, srt_dub, format: :srt, use_translated: true)
 
-        # Video-only stream. fMP4 segments are required for swappable audio tracks.
+        # Video-only stream, fMP4 segments are required for swappable audio tracks
         run_ffmpeg!(
           "-i", dubbed_video_path, "-an", "-c:v", "copy",
           "-f", "hls", "-hls_time", "6",
@@ -52,7 +52,7 @@ module DubbingPipeline
           error: "HLS video segmenting failed"
         )
 
-        # English audio track.
+        # English audio track
         run_ffmpeg!(
           "-i", audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
           "-f", "hls", "-hls_time", "6",
@@ -64,7 +64,7 @@ module DubbingPipeline
           error: "HLS english audio failed"
         )
 
-        # Dubbed audio track — same encoding as English so the player switches cleanly.
+        # Dubbed audio, same encoding as English so the player switches cleanly
         run_ffmpeg!(
           "-i", dubbed_audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
           "-f", "hls", "-hls_time", "6",
@@ -76,7 +76,7 @@ module DubbingPipeline
           error: "HLS dubbed audio failed"
         )
 
-        # One subtitle playlist per language, wrapping the .webvtt as a single HLS segment.
+        # One subtitle playlist per language, each wrapping its .webvtt as a single segment
         [ src_code, lang_code ].uniq.each do |lang|
           File.write(File.join(hls_dir, "playlist_s-#{lang}.m3u8"), <<~M3U8)
             #EXTM3U
@@ -89,7 +89,7 @@ module DubbingPipeline
           M3U8
         end
 
-        # VTT chapters for the HLS player; JSON chapters for the COS Player UI.
+        # VTT chapters for the HLS player, JSON chapters for the COS Player UI
         write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{src_code}.vtt"), duration, key: "title")
         write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{lang_code}.vtt"), duration, key: "title_dubbed")
         File.write(File.join(hls_dir, "chapters.json"), JSON.pretty_generate(task.chapters))
@@ -111,7 +111,7 @@ module DubbingPipeline
       raise "#{error}: #{stderr}" unless status.success?
     end
 
-    # Returns bare seconds (no labels) so the caller can parse as a float.
+    # Bare seconds with no labels so callers can parse as a float
     def probe_duration(path)
       out, _err, status = Open3.capture3(
         "ffprobe", "-v", "error",
@@ -123,7 +123,7 @@ module DubbingPipeline
       out.strip.to_f
     end
 
-    # HH:MM:SS<sep>mmm. VTT uses ".", SRT uses ",".
+    # HH:MM:SS<sep>mmm, VTT uses ".", SRT uses ","
     def fmt_timestamp(seconds, ms_sep:)
       h = (seconds / 3600).to_i
       m = ((seconds % 3600) / 60).to_i
@@ -150,7 +150,7 @@ module DubbingPipeline
       File.open(path, "w") do |f|
         f.write("WEBVTT\n\n")
         chapters.each_with_index do |ch, i|
-          # Each chapter ends where the next one starts; the last runs to video end.
+          # Each chapter ends where the next one starts, the last runs to video end
           end_time = chapters[i + 1] ? chapters[i + 1]["start"] : duration
           title = ch[key] || ch["title"]
           f.write("Chapter #{i + 1}\n")
@@ -162,7 +162,7 @@ module DubbingPipeline
 
     def write_master_playlist(path, language, lang_code, src_code)
       src_name = DubbingTask::SOURCE_LANG_NAME
-      # DEFAULT=YES: track the player loads on startup. AUTOSELECT=YES: user can pick it from the menu.
+      # DEFAULT=YES is the track the player loads on startup, AUTOSELECT=YES lets the user pick it
       File.write(path, <<~M3U8)
         #EXTM3U
 
@@ -183,7 +183,7 @@ module DubbingPipeline
 
       chapter_list = task.chapters.each_with_index.map do |ch, i|
         end_time = task.chapters[i + 1] ? task.chapters[i + 1]["start"] : duration
-        # Slugify the title for the id: "Intro to AI!" → "intro_to_ai".
+        # Slugify the title for the id, "Intro to AI!" becomes "intro_to_ai"
         ch_id = ch["title"].to_s.downcase.gsub(/[^a-z0-9]+/, "_").gsub(/(^_|_$)/, "")
         {
           id: ch_id,
@@ -199,8 +199,8 @@ module DubbingPipeline
         video: {
           title: "",
           chapters: chapter_list,
-          # All assets share the COS prefix with cos_player.json, so the player resolves them
-          # as siblings of master.m3u8.
+          # All assets share the prefix with cos_player.json, so the player resolves them
+          # as siblings of master.m3u8
           videos: [ { url: "master.m3u8", quality: "original", downloadable: true, hd: true } ],
           subtitles: [
             { url: "transcript_#{src_code}.srt", label: src_name, language: src_code.upcase, format: "srt" },

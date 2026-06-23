@@ -9,7 +9,7 @@ class DubbingWorkspace
     @dir = dir
   end
 
-  # Streams the blob to <dir>/<filename> and returns the local path.
+  # Streams the blob to <dir>/<filename> and returns the local path
   def fetch(attachment, filename)
     path = path(filename)
     File.open(path, "wb") do |f|
@@ -22,7 +22,7 @@ class DubbingWorkspace
     File.join(@dir, File.basename(filename))
   end
 
-  # Closes the IO when done — long-running workers would otherwise leak file descriptors.
+  # Block form closes the IO so long-running workers don't leak file descriptors
   def attach(attachment, filename, content_type:)
     File.open(path(filename), "rb") do |io|
       attachment.attach(io: io, filename: File.basename(filename), content_type: content_type)

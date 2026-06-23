@@ -13,7 +13,7 @@ class DubbingHlsUploader
     new(local_hls_dir, task_id).upload_dir
   end
 
-  # Removes all HLS objects for a task.
+  # Removes all HLS objects for a task
   def self.purge(task_id)
     new(nil, task_id).purge
   end
@@ -24,8 +24,7 @@ class DubbingHlsUploader
   end
 
   def upload_dir
-    # Clear stale objects from a prior partial run — otherwise a shorter new run
-    # leaves orphaned segments behind the freshly-written manifest.
+    # Wipe any leftovers from a prior partial run so we don't orphan stale segments
     purge
 
     Dir.glob(File.join(@local_hls_dir, "**/*")).each do |path|
@@ -33,7 +32,7 @@ class DubbingHlsUploader
       relative = path.sub(/\A#{Regexp.escape(@local_hls_dir)}\/?/, "")
       put_object(path, "#{prefix}#{relative}")
     end
-    public_url("#{prefix}master.m3u8")
+    hls_master_url
   end
 
   def purge
@@ -57,11 +56,11 @@ class DubbingHlsUploader
     ActiveStorage::Blob.service.bucket
   end
 
-  def public_url(key)
-    "#{Settings.dig(:ibmcos, :endpoint).chomp('/')}/#{bucket_name}/#{key}"
-  end
-
-  def bucket_name
-    Settings.dig(:ibmcos, :bucket)
+  # Players load sibling files relative to master.m3u8, so we serve the whole bundle
+  # through the dubbing_tasks#hls endpoint instead of opening the bucket up
+  def hls_master_url
+    path = "/api/v1/async/videos/dubbing_tasks/#{@task_id}/hls/master.m3u8"
+    host = Settings.dig(:host)
+    host.present? ? "#{host.to_s.chomp('/')}#{path}" : path
   end
 end

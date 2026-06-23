@@ -24,7 +24,10 @@ Rails.application.routes.draw do
         namespace :videos do
           resources :transcoding_tasks, only: %w[ show create ]
           resources :images_to_video_tasks, only: %w[ show create ]
-          resources :dubbing_tasks, only: %w[ show create ]
+          resources :dubbing_tasks, only: %w[ show create ] do
+            # Streams the HLS dir from COS so we can keep the bucket private
+            get "hls/*path", action: :hls, format: false, on: :member
+          end
         end
       end
     end

@@ -17,7 +17,7 @@ module DubbingPipeline
         audio_path = ws.fetch(task.audio, "audio.wav")
         ogg_path = ws.path("transcribe.ogg")
 
-        # Using Opus instead of mp3 because the worker ffmpeg is built without libmp3lame.
+        # Opus instead of mp3, the worker ffmpeg is built without libmp3lame
         _stdout, stderr, status = Open3.capture3(
           "ffmpeg", "-y",
           "-i", audio_path,

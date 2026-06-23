@@ -19,8 +19,8 @@ module DubbingPipeline
         audio_path = ws.path("audio.wav")
         source_video_path = ws.path("source.mp4")
 
-        # -protocol_whitelist must come before -i to apply to the input. It blocks
-        # file://, concat:, pipe:, etc. even when a redirect or playlist asks for them.
+        # -protocol_whitelist has to come before -i to apply to the input, blocks
+        # file://, concat:, pipe: even when a redirect or playlist asks for them
         _stdout, stderr, status = Open3.capture3(
           "ffmpeg", "-y",
           "-protocol_whitelist", "https,tls,tcp",

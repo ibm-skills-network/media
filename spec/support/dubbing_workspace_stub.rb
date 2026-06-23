@@ -1,7 +1,5 @@
-# Stubs DubbingWorkspace so pipeline-job specs don't need real Dir.mktmpdir,
-# real disk I/O, or real ActiveStorage uploads. The fake yields paths under a
-# predictable `/tmp/ws-stub-<prefix>` dir, records every attach call on the
-# returned object, and is shareable across `before` blocks.
+# Stubs DubbingWorkspace so pipeline specs don't need real mktmpdir, disk I/O,
+# or AS uploads, fake yields paths under /tmp/ws-stub-<prefix> and records every attach
 module DubbingWorkspaceStub
   class FakeWorkspace
     attr_reader :dir, :attached
@@ -25,8 +23,8 @@ module DubbingWorkspaceStub
     end
   end
 
-  # Stubs the workspace and yields the FakeWorkspace to the block for assertion
-  # purposes. The block runs once per DubbingWorkspace.with call in the SUT.
+  # Yields the FakeWorkspace once per DubbingWorkspace.with call in the SUT so tests
+  # can assert on the captured attach/fetch calls afterward
   def stub_dubbing_workspace
     captured = []
     allow(DubbingWorkspace).to receive(:with) do |prefix, &block|
