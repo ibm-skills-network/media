@@ -8,6 +8,7 @@ librosa==0.10.2
 soundfile==0.12.1
 pydub==0.25.1
 inaSpeechSegmenter==0.7.8
-# 3.14.0 clears 6 of 7 keras CVEs flagged by the scanner. CVE-2026-12479 has
-# no patched version yet — track upstream for a bump or get a scanner exception.
-keras==3.14.0
+# tensorflow bundles its own keras, so the security scanner's "vulnerable keras"
+# finding has to be fixed by bumping tensorflow itself, not pinning keras
+# separately (which would conflict with tensorflow's bundled copy)
+tensorflow==2.21.0
