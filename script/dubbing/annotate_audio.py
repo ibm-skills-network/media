@@ -35,6 +35,38 @@ def median_pitch(chunk, sr):
     return float(np.median(voiced)) if len(voiced) > 0 else None
 
 
+def analyze_prosody(y, sr, start, end):
+    """
+    Energy + pitch trend of an audio segment -> TTS style (excited/soft/expressive/neutral)
+    """
+    chunk = y[int(start * sr):int(end * sr)]
+    if len(chunk) < int(sr * 0.1):
+        return "neutral"
+
+    rms = librosa.feature.rms(y=chunk)[0]
+    rms_db = librosa.amplitude_to_db(np.array([float(np.mean(rms))]), ref=1.0)[0]
+
+    f0, _, _ = librosa.pyin(chunk, fmin=50, fmax=500, sr=sr)
+    f0_valid = f0[~np.isnan(f0)] if f0 is not None else np.array([])
+
+    if rms_db > -15:
+        energy = "high"
+    elif rms_db < -30:
+        energy = "low"
+    else:
+        energy = "normal"
+
+    pitch_varied = len(f0_valid) > 2 and float(np.std(f0_valid)) > 30
+
+    if energy == "high" and pitch_varied:
+        return "excited"
+    if energy == "low":
+        return "soft"
+    if pitch_varied:
+        return "expressive"
+    return "neutral"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("audio_path")
@@ -92,38 +124,6 @@ def main():
         seg["prosody"] = analyze_prosody(y, sr, seg["start"], seg["end"])
 
     print(json.dumps(segments))
-
-
-def analyze_prosody(y, sr, start, end):
-    """
-    Energy + pitch trend of an audio segment -> TTS style (excited/soft/expressive/neutral)
-    """
-    chunk = y[int(start * sr):int(end * sr)]
-    if len(chunk) < int(sr * 0.1):
-        return "neutral"
-
-    rms = librosa.feature.rms(y=chunk)[0]
-    rms_db = librosa.amplitude_to_db(np.array([float(np.mean(rms))]), ref=1.0)[0]
-
-    f0, _, _ = librosa.pyin(chunk, fmin=50, fmax=500, sr=sr)
-    f0_valid = f0[~np.isnan(f0)] if f0 is not None else np.array([])
-
-    if rms_db > -15:
-        energy = "high"
-    elif rms_db < -30:
-        energy = "low"
-    else:
-        energy = "normal"
-
-    pitch_varied = len(f0_valid) > 2 and float(np.std(f0_valid)) > 30
-
-    if energy == "high" and pitch_varied:
-        return "excited"
-    if energy == "low":
-        return "soft"
-    if pitch_varied:
-        return "expressive"
-    return "neutral"
 
 
 if __name__ == "__main__":

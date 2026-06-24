@@ -20,59 +20,13 @@ RSpec.describe Api::V1::Async::Videos::DubbingTasksController, type: :controller
       expect(json).to include("status" => "failed", "error_message" => "boom")
     end
 
-    it "returns hls_path so the client can fetch the playable manifest" do
-      task.update!(status: "success", hls_path: "/api/v1/async/videos/dubbing_tasks/#{task.id}/hls/master.m3u8")
+    it "returns hls_path so the client can embed the playable manifest" do
+      task.update!(status: "success", hls_path: "https://cos.example.com/bucket/dubbing/#{task.id}-abc/hls/master.m3u8")
 
       get :show, params: { id: task.id }
 
       json = JSON.parse(response.body)
       expect(json["hls_path"]).to end_with("/master.m3u8")
-    end
-  end
-
-  describe "GET #hls" do
-    let(:task) { create(:dubbing_task, status: "success") }
-    let(:bucket) { double("bucket") }
-    let(:object) { double("object") }
-
-    before do
-      service = double("service", bucket: bucket)
-      allow(ActiveStorage::Blob).to receive(:service).and_return(service)
-      allow(bucket).to receive(:object).and_return(object)
-      allow(object).to receive(:exists?).and_return(true)
-      allow(object).to receive(:get).and_yield("chunk1").and_yield("chunk2")
-    end
-
-    it "streams master.m3u8 with the correct content type" do
-      get :hls, params: { id: task.id, path: "master.m3u8" }
-
-      expect(response).to have_http_status(:ok)
-      expect(response.content_type).to start_with("application/vnd.apple.mpegurl")
-      expect(bucket).to have_received(:object).with("dubbing/#{task.id}/hls/master.m3u8")
-    end
-
-    it "streams an fMP4 segment with video/iso.segment" do
-      get :hls, params: { id: task.id, path: "seg_v_000.mp4" }
-
-      expect(response).to have_http_status(:ok)
-      expect(response.content_type).to start_with("video/iso.segment")
-    end
-
-    it "rejects path traversal attempts" do
-      get :hls, params: { id: task.id, path: "../../etc/passwd" }
-      expect(response).to have_http_status(:not_found)
-      expect(bucket).not_to have_received(:object)
-    end
-
-    it "rejects absolute paths" do
-      get :hls, params: { id: task.id, path: "/etc/passwd" }
-      expect(response).to have_http_status(:not_found)
-    end
-
-    it "returns 404 when the COS object is missing" do
-      allow(object).to receive(:exists?).and_return(false)
-      get :hls, params: { id: task.id, path: "master.m3u8" }
-      expect(response).to have_http_status(:not_found)
     end
   end
 

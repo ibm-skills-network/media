@@ -1,4 +1,6 @@
 class DubbingTask < ApplicationRecord
+  before_create :assign_playback_key
+
   # Pipeline intermediates, each job downloads what it needs, runs ffmpeg/Python locally,
   # and re-attaches its outputs so the next job (on any worker pod) can find them
   has_one_attached :audio
@@ -112,7 +114,7 @@ class DubbingTask < ApplicationRecord
       attachment = public_send(name)
       attachment.purge if attachment.attached?
     end
-    DubbingHlsUploader.purge(id) if include_hls
+    DubbingHlsUploader.purge(self) if include_hls
   end
 
   private
@@ -120,6 +122,10 @@ class DubbingTask < ApplicationRecord
   def target_language_is_not_source
     return unless language && LANGUAGE_CODES[language] == SOURCE_LANG_CODE
     errors.add(:language, "cannot dub to the source language (#{SOURCE_LANG_CODE})")
+  end
+
+  def assign_playback_key
+    self.playback_key ||= SecureRandom.urlsafe_base64(16)
   end
 
   # Block anything ffmpeg's `-i` could read as a non-HTTP protocol (file://, concat:, pipe:, ...)

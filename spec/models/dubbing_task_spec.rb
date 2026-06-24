@@ -175,7 +175,7 @@ RSpec.describe DubbingTask, type: :model do
 
     it "purges the HLS prefix when include_hls is true" do
       task = create(:dubbing_task)
-      expect(DubbingHlsUploader).to receive(:purge).with(task.id)
+      expect(DubbingHlsUploader).to receive(:purge).with(task)
       task.purge_pipeline_artifacts!(include_hls: true)
     end
 

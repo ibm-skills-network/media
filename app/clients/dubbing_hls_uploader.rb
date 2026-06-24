@@ -9,22 +9,22 @@ class DubbingHlsUploader
     ".json"   => "application/json"
   }.freeze
 
-  def self.upload_dir(local_hls_dir, task_id)
-    new(local_hls_dir, task_id).upload_dir
+  def self.upload_dir(local_hls_dir, task)
+    new(local_hls_dir, task).upload_dir
   end
 
   # Removes all HLS objects for a task
-  def self.purge(task_id)
-    new(nil, task_id).purge
+  def self.purge(task)
+    new(nil, task).purge
   end
 
-  def initialize(local_hls_dir, task_id)
+  def initialize(local_hls_dir, task)
     @local_hls_dir = local_hls_dir
-    @task_id = task_id
+    @task = task
   end
 
   def upload_dir
-    # Wipe any leftovers from a prior partial run so we don't orphan stale segments
+    # Wipe leftovers from a prior partial run so we don't orphan stale segments
     purge
 
     Dir.glob(File.join(@local_hls_dir, "**/*")).each do |path|
@@ -32,35 +32,56 @@ class DubbingHlsUploader
       relative = path.sub(/\A#{Regexp.escape(@local_hls_dir)}\/?/, "")
       put_object(path, "#{prefix}#{relative}")
     end
-    hls_master_url
+    public_url("#{prefix}master.m3u8")
   end
 
   def purge
-    bucket.objects(prefix: prefix).batch_delete!
+    client.list_objects_v2(bucket: bucket_name, prefix: prefix).contents.each_slice(1000) do |batch|
+      client.delete_objects(
+        bucket: bucket_name,
+        delete: { objects: batch.map { |o| { key: o.key } } }
+      )
+    end
   end
 
   private
 
+  # Random playback_key makes the prefix unguessable, so the public bucket policy
+  # doesn't let anyone enumerate other tasks' output by walking sequential ids
   def prefix
-    "dubbing/#{@task_id}/hls/"
+    "dubbing/#{@task.id}-#{@task.playback_key}/hls/"
   end
 
   def put_object(local_path, key)
-    bucket.object(key).upload_file(
-      local_path,
-      content_type: CONTENT_TYPES[File.extname(local_path)] || "application/octet-stream"
+    File.open(local_path, "rb") do |body|
+      client.put_object(
+        bucket: bucket_name,
+        key: key,
+        body: body,
+        content_type: CONTENT_TYPES[File.extname(local_path)] || "application/octet-stream"
+      )
+    end
+  end
+
+  def public_url(key)
+    "#{endpoint.chomp('/')}/#{bucket_name}/#{key}"
+  end
+
+  def client
+    @client ||= Aws::S3::Client.new(
+      endpoint: endpoint,
+      region: Settings.ibmcos.region,
+      access_key_id: Settings.ibmcos.access_key_id,
+      secret_access_key: Settings.ibmcos.secret_access_key,
+      force_path_style: true
     )
   end
 
-  def bucket
-    ActiveStorage::Blob.service.bucket
+  def endpoint
+    Settings.dubbing_hls_endpoint
   end
 
-  # Players load sibling files relative to master.m3u8, so we serve the whole bundle
-  # through the dubbing_tasks#hls endpoint instead of opening the bucket up
-  def hls_master_url
-    path = "/api/v1/async/videos/dubbing_tasks/#{@task_id}/hls/master.m3u8"
-    host = Settings.dig(:host)
-    host.present? ? "#{host.to_s.chomp('/')}#{path}" : path
+  def bucket_name
+    Settings.dubbing_hls_bucket
   end
 end

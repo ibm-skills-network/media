@@ -19,7 +19,7 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
     allow(FileUtils).to receive(:mkdir_p)
     allow(File).to receive(:write)
     allow(File).to receive(:open).and_yield(StringIO.new)
-    allow(DubbingHlsUploader).to receive(:upload_dir).and_return("https://cos.example.com/dubbing/#{task.id}/hls/master.m3u8")
+    allow(DubbingHlsUploader).to receive(:upload_dir).and_return("https://cos.example.com/bucket/dubbing/#{task.id}-#{task.playback_key}/hls/master.m3u8")
     allow(DubbingPipeline::CleanupJob).to receive(:perform_later)
   end
 
@@ -36,7 +36,7 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
 
     it "uploads the HLS dir through DubbingHlsUploader" do
       described_class.new.perform(task.id)
-      expect(DubbingHlsUploader).to have_received(:upload_dir).with(anything, task.id)
+      expect(DubbingHlsUploader).to have_received(:upload_dir).with(anything, an_instance_of(DubbingTask))
     end
 
     context "when the target language equals the source language" do

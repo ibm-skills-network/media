@@ -25,7 +25,7 @@ module DubbingPipeline
         background_path = ws.fetch(task.background, "background.wav")
 
         merged_segments = merge_segments_for_tts(task.segments)
-        total_s = probe_duration_seconds(background_path)
+        total_s = DubbingFfprobe.duration_seconds(background_path)
 
         tts_files = []
         merged_segments.each_with_index do |seg, i|
@@ -128,17 +128,6 @@ module DubbingPipeline
       slot_end - seg_start
     end
 
-    def probe_duration_seconds(path)
-      out, _err, status = Open3.capture3(
-        "ffprobe", "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        path
-      )
-      raise "ffprobe failed for #{path}" unless status.success?
-      out.strip.to_f
-    end
-
     def generate_tts_with_retranslation(text:, original_text:, voice_id:, voice_settings:, slot_s:, target_lang:, output_dir:, index:)
       current_text = text
       clip_path = File.join(output_dir, "tts_#{index}.mp3")
@@ -146,7 +135,7 @@ module DubbingPipeline
 
       MAX_RETRANSLATE_ATTEMPTS.times do
         write_tts_clip(current_text, voice_id, clip_path, voice_settings)
-        clip_ms = tts_duration_ms(clip_path)
+        clip_ms = (DubbingFfprobe.duration_seconds(clip_path) * 1000).to_i
 
         # Accept if it fits, or if a modest speedup can rescue it (Python applies the speedup).
         return [ clip_path, current_text ] if clip_ms <= slot_ms || (clip_ms.to_f / slot_ms) <= MAX_SPEED
@@ -176,17 +165,6 @@ module DubbingPipeline
       end
       raise "ElevenLabs failed: HTTP #{response.status}" unless response.success?
       File.binwrite(clip_path, response.body)
-    end
-
-    def tts_duration_ms(clip_path)
-      out, _err, status = Open3.capture3(
-        "ffprobe", "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        clip_path
-      )
-      raise "ffprobe failed for #{clip_path}" unless status.success?
-      (out.strip.to_f * 1000).to_i
     end
 
     def retranslate_shorter(text, original_text, slot_s, target_lang)

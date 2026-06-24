@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_17_150310) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_24_085909) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -52,11 +52,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_17_150310) do
     t.text "error_message"
     t.string "hls_path"
     t.string "language", null: false
+    t.string "playback_key"
     t.jsonb "segments", default: [], null: false
     t.string "status", default: "pending", null: false
     t.jsonb "subtitle_segments", default: [], null: false
     t.datetime "updated_at", null: false
     t.string "video_url", null: false
+    t.index ["playback_key"], name: "index_dubbing_tasks_on_playback_key", unique: true
   end
 
   create_table "images_to_video_tasks", force: :cascade do |t|

@@ -41,6 +41,8 @@ module DubbingPipeline
         end
       end
 
+      # Snapshot into subtitle_segments before GenerateDubbedAudioJob merges
+      # adjacent segments for TTS — subtitles need the original granularity
       task.update!(segments: segments, subtitle_segments: segments)
       DubbingPipeline::GenerateDubbedAudioJob.perform_later(task_id)
     end
@@ -70,17 +72,17 @@ module DubbingPipeline
         end
 
         translations = {}
-        failures = []
+        failure_count = 0
         futures.each_with_index do |future, idx|
           result = future.value!(BATCH_TIMEOUT_S + 100)
           translations.merge!(result) if result.is_a?(Hash)
         rescue => e
           Rails.logger.error("[TranslateJob] batch #{idx} failed: #{e.class}: #{e.message}")
-          failures << { idx: idx, error: e.message }
+          failure_count += 1
         end
 
-        if failures.any?
-          Rails.logger.error("[TranslateJob] #{failures.size}/#{batches.size} batches failed")
+        if failure_count.positive?
+          Rails.logger.error("[TranslateJob] #{failure_count}/#{batches.size} batches failed")
         end
 
         translations

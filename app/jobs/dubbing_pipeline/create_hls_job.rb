@@ -23,7 +23,7 @@ module DubbingPipeline
         hls_dir = File.join(ws.dir, "hls")
         FileUtils.mkdir_p(hls_dir)
 
-        duration = probe_duration(dubbed_video_path)
+        duration = DubbingFfprobe.duration_seconds(dubbed_video_path)
         lang_code = task.lang_code
         raise "CreateHlsJob: target language cannot equal source '#{DubbingTask::SOURCE_LANG_CODE}'" if lang_code == DubbingTask::SOURCE_LANG_CODE
 
@@ -97,7 +97,7 @@ module DubbingPipeline
         write_master_playlist(File.join(hls_dir, "master.m3u8"), task.language, lang_code, src_code)
         write_cos_player_json(task, hls_dir, duration, lang_code)
 
-        DubbingHlsUploader.upload_dir(hls_dir, task_id)
+        DubbingHlsUploader.upload_dir(hls_dir, task)
       end
 
       task.update!(hls_path: hls_master_url)
@@ -109,18 +109,6 @@ module DubbingPipeline
     def run_ffmpeg!(*args, error:)
       _stdout, stderr, status = Open3.capture3("ffmpeg", "-y", *args)
       raise "#{error}: #{stderr}" unless status.success?
-    end
-
-    # Bare seconds with no labels so callers can parse as a float
-    def probe_duration(path)
-      out, _err, status = Open3.capture3(
-        "ffprobe", "-v", "error",
-        "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        path
-      )
-      raise "ffprobe failed for #{path}" unless status.success?
-      out.strip.to_f
     end
 
     # HH:MM:SS<sep>mmm, VTT uses ".", SRT uses ","
