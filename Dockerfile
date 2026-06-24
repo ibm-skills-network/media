@@ -47,6 +47,7 @@ COPY lib ./lib
 COPY app/models ./app/models
 COPY Rakefile config.ru ./
 COPY app ./app
+COPY script ./script
 ENV SECRET_KEY_BASE=dummysecret
 
 
@@ -71,7 +72,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g \
     libffi8 \
     libgmp10 \
+    python3 \
+    python3-pip \
+    python3-venv \
+    libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies for dubbing pipeline scripts.
+# Done before COPY of app code so this layer caches independently of Ruby changes.
+COPY script/dubbing/requirements.txt /tmp/requirements.txt
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt \
+    && rm /tmp/requirements.txt
 
 # Copy Ruby and all dependencies from builder
 COPY --from=builder /usr/local/bin/ruby /usr/local/bin/ruby

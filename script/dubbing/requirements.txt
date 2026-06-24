@@ -1,0 +1,10 @@
+--extra-index-url https://download.pytorch.org/whl/cu118
+
+demucs==4.0.1
+torch==2.1.2
+torchaudio==2.1.2
+numpy==1.26.4
+librosa==0.10.2
+soundfile==0.12.1
+pydub==0.25.1
+inaSpeechSegmenter==0.7.8
