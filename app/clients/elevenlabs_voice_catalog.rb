@@ -1,4 +1,13 @@
 class ElevenlabsVoiceCatalog
+    def languages
+        DubbingTask::LANGUAGE_CODES.filter_map do |name, code|
+            dialects = dialects_for(fetch_voices(code))
+            next if dialects.empty?
+
+            { language_name: name, language_code: code, dialects: dialects }
+        end
+    end
+
     def pool_for(language_code:, dialect:, gender:, min_size:)
         voices = fetch_voices(language_code)
         matched = filter(voices, dialect:, gender:)
@@ -11,6 +20,10 @@ class ElevenlabsVoiceCatalog
     end
 
     private
+
+    def dialects_for(voices)
+        voices.map { |v| v[:accent] }.uniq.reject(&:blank?)
+    end
 
     def filter(voices, dialect:, gender:)
         api_gender = (gender == "man") ? "male" : "female"
