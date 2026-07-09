@@ -154,8 +154,8 @@ module DubbingPipeline
       File.write(path, <<~M3U8)
         #EXTM3U
 
-        #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-eng.m3u8",GROUP-ID="audio",LANGUAGE="#{src_code}",NAME="#{src_name}",DEFAULT=YES,AUTOSELECT=YES
-        #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-dub.m3u8",GROUP-ID="audio",LANGUAGE="#{lang_code}",NAME="#{language}",AUTOSELECT=YES
+        #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-dub.m3u8",GROUP-ID="audio",LANGUAGE="#{lang_code}",NAME="#{language}",DEFAULT=YES,AUTOSELECT=YES
+        #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-eng.m3u8",GROUP-ID="audio",LANGUAGE="#{src_code}",NAME="#{src_name}",AUTOSELECT=YES
 
         #EXT-X-MEDIA:TYPE=SUBTITLES,URI="playlist_s-#{src_code}.m3u8",GROUP-ID="subs",LANGUAGE="#{src_code}",NAME="#{src_name}",DEFAULT=YES,AUTOSELECT=YES
         #EXT-X-MEDIA:TYPE=SUBTITLES,URI="playlist_s-#{lang_code}.m3u8",GROUP-ID="subs",LANGUAGE="#{lang_code}",NAME="#{language}",AUTOSELECT=YES
