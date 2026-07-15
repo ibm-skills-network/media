@@ -6,9 +6,7 @@ module DubbingPipeline
     MAX_MERGED_DURATION_S = 15.0
     MAX_RETRANSLATE_ATTEMPTS = 2
     MAX_SPEED = 1.35
-    # Accept a clip without retranslating only when the needed speedup is barely
-    # audible. Between COMFORT_SPEED and MAX_SPEED speech stays intelligible but
-    # sounds rushed, so those clips are worth a retranslation attempt first.
+    # Above this speedup, retranslating is worth trying before accepting the clip
     COMFORT_SPEED = 1.15
     SLOT_PAD_S = 0.5
 

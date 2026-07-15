@@ -12,17 +12,21 @@ class ElevenlabsVoiceCatalog
         voices = fetch_voices(language_code)
         matched = filter(voices, dialect:, gender:)
 
-        return matched.map { |v| v[:voice_id] } if matched.size >= min_size
+        return rank(matched).map { |v| v[:voice_id] } if matched.size >= min_size
 
-        # in case we don't have enough, we drop accent filter
+        # not enough matches, drop the accent filter
         broadened = filter(voices, dialect: nil, gender: gender)
-        broadened.map { |v| v[:voice_id] }
+        rank(broadened).map { |v| v[:voice_id] }
     end
 
     private
 
     def dialects_for(voices)
         voices.map { |v| v[:accent] }.uniq.reject(&:blank?)
+    end
+
+    def rank(voices)
+        voices.sort_by { |v| [ -v[:usage_character_count_1y].to_i, -v[:cloned_by_count].to_i ] }
     end
 
     def filter(voices, dialect:, gender:)
@@ -33,12 +37,14 @@ class ElevenlabsVoiceCatalog
     end
 
     def fetch_voices(language_code)
-        cached = Rails.cache.read("elevenlabs:voices:#{language_code}")
+        cached = Rails.cache.read("elevenlabs:voices:v2:#{language_code}")
         return cached if cached
 
         response = http_client.get("/v1/shared-voices") do |req|
             req.params["language"] = language_code
             req.params["page_size"] = 100
+            # default sort is created_date; we want proven voices, not newest uploads
+            req.params["sort"] = "usage_character_count_1y"
             req.headers["xi-api-key"] = ENV["ELEVENLABS_FREE_API_KEY"]
         end
 
@@ -53,10 +59,12 @@ class ElevenlabsVoiceCatalog
                 voice_id: v["voice_id"],
                 name: v["name"],
                 gender: v["gender"],
-                accent: v["accent"]
+                accent: v["accent"],
+                usage_character_count_1y: v["usage_character_count_1y"],
+                cloned_by_count: v["cloned_by_count"]
             }
         end
-        Rails.cache.write("elevenlabs:voices:#{language_code}", voices, expires_in: 24.hours)
+        Rails.cache.write("elevenlabs:voices:v2:#{language_code}", voices, expires_in: 24.hours)
         voices
     end
 

@@ -8,14 +8,10 @@ module DubbingPipeline
     BATCH_TIMEOUT_S = 600
     MAX_BATCH_RETRIES = 3
 
-    # Pace used to precompute the per-line length budget shown to the model,
-    # set ~10% BELOW what the TTS actually speaks so budget-compliant lines fit
-    # even for slower voices (the overrun loop downstream can shorten a line
-    # but never lengthen one). Spanish is calibrated against measured
-    # eleven_multilingual_v2 output at the pipeline's neutral voice settings
-    # (2.55 words/s mean across voices, 2026-07); the rest are estimates
-    # relative to it. CJK budgets are in characters (chars ≈ syllables there);
-    # everything else in words, the only unit LLMs track semi-reliably.
+    # Speaking pace per language, set ~10% below measured TTS output so
+    # budget-compliant lines still fit slower voices. Spanish is calibrated
+    # against real eleven_multilingual_v2 output (2.55 words/s, 2026-07);
+    # the rest are estimates relative to it. CJK is measured in characters.
     LENGTH_BUDGET_RATES = {
       "Spanish"    => [ 2.3, "words" ],
       "Italian"    => [ 2.3, "words" ],
@@ -62,7 +58,7 @@ module DubbingPipeline
       end
 
       # Snapshot into subtitle_segments before GenerateDubbedAudioJob merges
-      # adjacent segments for TTS — subtitles need the original granularity
+      # adjacent segments for TTS, subtitles need the original granularity
       task.update!(segments: segments, subtitle_segments: segments)
       DubbingPipeline::GenerateDubbedAudioJob.perform_later(task_id)
     end
