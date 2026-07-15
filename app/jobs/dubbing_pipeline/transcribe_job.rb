@@ -22,7 +22,7 @@ module DubbingPipeline
 
         conn = Faraday.new do |f|
           f.request :multipart
-          f.options.timeout = 300
+          f.options.timeout = 900
           f.options.open_timeout = 10
         end
 
