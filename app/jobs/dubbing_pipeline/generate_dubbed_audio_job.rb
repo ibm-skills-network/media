@@ -6,6 +6,10 @@ module DubbingPipeline
     MAX_MERGED_DURATION_S = 15.0
     MAX_RETRANSLATE_ATTEMPTS = 2
     MAX_SPEED = 1.35
+    # Accept a clip without retranslating only when the needed speedup is barely
+    # audible. Between COMFORT_SPEED and MAX_SPEED speech stays intelligible but
+    # sounds rushed, so those clips are worth a retranslation attempt first.
+    COMFORT_SPEED = 1.15
     SLOT_PAD_S = 0.5
 
     sidekiq_retries_exhausted do |msg, exception|
@@ -131,21 +135,35 @@ module DubbingPipeline
     def generate_tts_with_retranslation(text:, original_text:, voice_id:, voice_settings:, slot_s:, target_lang:, output_dir:, index:)
       current_text = text
       clip_path = File.join(output_dir, "tts_#{index}.mp3")
+      best_path = File.join(output_dir, "tts_#{index}_best.mp3")
       slot_ms = (slot_s * 1000).to_i
+      best = nil
 
-      MAX_RETRANSLATE_ATTEMPTS.times do
+      (MAX_RETRANSLATE_ATTEMPTS + 1).times do |attempt|
         write_tts_clip(current_text, voice_id, clip_path, voice_settings)
         clip_ms = (DubbingFfprobe.duration_seconds(clip_path) * 1000).to_i
 
-        # Accept if it fits, or if a modest speedup can rescue it (Python applies the speedup).
-        return [ clip_path, current_text ] if clip_ms <= slot_ms || (clip_ms.to_f / slot_ms) <= MAX_SPEED
+        # Fits with at most a barely-audible speedup (Python applies it): take it.
+        return [ clip_path, current_text ] if clip_ms <= slot_ms * COMFORT_SPEED
 
-        current_text = retranslate_shorter(current_text, original_text, slot_s, target_lang)
+        # Remember the shortest attempt; a retranslation isn't guaranteed to come out shorter.
+        if best.nil? || clip_ms < best[:clip_ms]
+          FileUtils.cp(clip_path, best_path)
+          best = { clip_ms: clip_ms, text: current_text }
+        end
+
+        break if attempt == MAX_RETRANSLATE_ATTEMPTS
+        current_text = retranslate_shorter(current_text, original_text, clip_ms / 1000.0, slot_s, target_lang)
       end
 
-      # Out of retries, let Python speed up or trim whatever we ended with
-      write_tts_clip(current_text, voice_id, clip_path, voice_settings)
-      [ clip_path, current_text ]
+      # Nothing fit comfortably: keep the shortest attempt and let Python
+      # speed it up (capped at MAX_SPEED) or trim as a last resort.
+      Rails.logger.warn(
+        "[GenerateDubbedAudioJob] segment #{index} still #{(best[:clip_ms] / 1000.0).round(1)}s " \
+        "for a #{slot_s.round(1)}s slot after #{MAX_RETRANSLATE_ATTEMPTS} retranslations"
+      )
+      FileUtils.mv(best_path, clip_path)
+      [ clip_path, best[:text] ]
     end
 
     def write_tts_clip(text, voice_id, clip_path, voice_settings)
@@ -167,8 +185,11 @@ module DubbingPipeline
       File.binwrite(clip_path, response.body)
     end
 
-    def retranslate_shorter(text, original_text, slot_s, target_lang)
-      max_syllables = (slot_s * 4).to_i
+    def retranslate_shorter(text, original_text, clip_s, slot_s, target_lang)
+      # The clip/slot ratio is measured from real audio, so it converts directly
+      # into a word budget the model can aim at without estimating pace itself.
+      current_words = text.split.length
+      target_words = [ (current_words * slot_s / clip_s).floor, 3 ].max
       conn = Faraday.new do |f|
         f.options.timeout = 60
         f.options.open_timeout = 10
@@ -182,7 +203,7 @@ module DubbingPipeline
             {
               role: "system",
               content: <<~PROMPT
-                You are a dubbing translator. The previous #{target_lang} translation is too long for the available audio slot (#{slot_s.round(1)}s, ~#{max_syllables} syllables). Produce a tighter #{target_lang} version that preserves the speaker's intent.
+                You are a dubbing translator. The previous #{target_lang} translation was synthesized to speech and the audio came out too long: it takes #{clip_s.round(1)}s to speak but only #{slot_s.round(1)}s is available. Rewrite it in AT MOST #{target_words} words (it currently has #{current_words}) while preserving the speaker's intent. Shorter than #{target_words} words is even better.
 
                 Prefer:
                   - Stronger single verbs over compound constructions
@@ -191,6 +212,8 @@ module DubbingPipeline
 
                 Avoid:
                   - Amputating meaningful content — compress, don't truncate
+                  - Dropping words the listener acts on: negations, numbers, qualifiers like "again", "only", "first"
+                  - Truncating technique or product names (keep "chain of thought prompting" whole)
                   - Changing the emotional tone or register
                   - Em-dashes, en-dashes, or hyphens as separators (text is read aloud by TTS)
 

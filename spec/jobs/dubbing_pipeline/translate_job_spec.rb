@@ -41,6 +41,15 @@ RSpec.describe DubbingPipeline::TranslateJob, type: :job do
       described_class.new.perform(task.id)
     end
 
+    context "when GPT echoes the budget tag back in its output" do
+      let(:gpt_content) { "[0|1.0s|max 3 words] Hola.\n[1|1.0s|max 3 words] Mundo." }
+
+      it "still parses every translation" do
+        described_class.new.perform(task.id)
+        expect(task.reload.segments.map { |s| s["translated_text"] }).to eq([ "Hola.", "Mundo." ])
+      end
+    end
+
     context "when GPT omits more than 10% of translations" do
       let(:gpt_content) { "" } # nothing parsed
 
@@ -55,6 +64,22 @@ RSpec.describe DubbingPipeline::TranslateJob, type: :job do
         expect(conn).not_to receive(:post)
         described_class.new.perform(task.id)
       end
+    end
+  end
+
+  describe "#length_budget" do
+    let(:job) { described_class.new }
+
+    it "computes a word budget from duration and the language's TTS pace" do
+      expect(job.send(:length_budget, 3.8, "Spanish")).to eq("max 8 words")
+    end
+
+    it "never drops below the minimum budget on tiny slots" do
+      expect(job.send(:length_budget, 0.5, "Spanish")).to eq("max 3 words")
+    end
+
+    it "uses character budgets for CJK languages" do
+      expect(job.send(:length_budget, 4.0, "Japanese")).to eq("max 26 characters")
     end
   end
 

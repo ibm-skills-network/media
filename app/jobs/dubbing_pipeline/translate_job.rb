@@ -8,6 +8,26 @@ module DubbingPipeline
     BATCH_TIMEOUT_S = 600
     MAX_BATCH_RETRIES = 3
 
+    # Pace used to precompute the per-line length budget shown to the model,
+    # set ~10% BELOW what the TTS actually speaks so budget-compliant lines fit
+    # even for slower voices (the overrun loop downstream can shorten a line
+    # but never lengthen one). Spanish is calibrated against measured
+    # eleven_multilingual_v2 output at the pipeline's neutral voice settings
+    # (2.55 words/s mean across voices, 2026-07); the rest are estimates
+    # relative to it. CJK budgets are in characters (chars ≈ syllables there);
+    # everything else in words, the only unit LLMs track semi-reliably.
+    LENGTH_BUDGET_RATES = {
+      "Spanish"    => [ 2.3, "words" ],
+      "Italian"    => [ 2.3, "words" ],
+      "Portuguese" => [ 2.3, "words" ],
+      "French"     => [ 2.6, "words" ],
+      "German"     => [ 2.2, "words" ],
+      "Japanese"   => [ 6.5, "characters" ],
+      "Chinese"    => [ 4.2, "characters" ]
+    }.freeze
+    DEFAULT_BUDGET_RATE = [ 2.4, "words" ].freeze
+    MIN_WORD_BUDGET = 3
+
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
       next unless task
@@ -117,8 +137,7 @@ module DubbingPipeline
       batch[:translate_range].each do |i|
         seg = segments[i]
         duration = (seg["end"] - seg["start"]).round(1)
-        word_count = seg["text"].split.length
-        lines << "[#{i}|#{duration}s|#{word_count}w] #{seg["text"]}"
+        lines << "[#{i}|#{duration}s|#{length_budget(duration, target_lang)}] #{seg["text"]}"
       end
       payload_text = lines.join("\n")
 
@@ -144,12 +163,21 @@ module DubbingPipeline
 
       parsed = {}
       result.split("\n").each do |line|
-        match = line.strip.match(/\[(\d+)\|[\d.]+s(?:\|\d+w)?\]\s*(.+)/)
+        # Tolerate whatever tag shape the model echoes back ([3|2.5s], [3|2.5s|max 8 words], ...)
+        match = line.strip.match(/\[(\d+)\|[^\]]*\]\s*(.+)/)
         next unless match
         idx = match[1].to_i
         parsed[idx] = match[2].strip if batch[:translate_range].include?(idx)
       end
       parsed
+    end
+
+    # "max 8 words" (or characters for CJK), computed from the line's duration so
+    # the model never has to estimate pace or duration itself.
+    def length_budget(duration, target_lang)
+      rate, unit = LENGTH_BUDGET_RATES.fetch(target_lang, DEFAULT_BUDGET_RATE)
+      budget = [ (duration * rate).floor, MIN_WORD_BUDGET ].max
+      "max #{budget} #{unit}"
     end
 
     def system_prompt(target_lang)
@@ -158,15 +186,25 @@ module DubbingPipeline
 
         The input may include [CONTEXT N] lines showing the original-language segments immediately before this batch. Use these only for tone/term/pronoun consistency. DO NOT translate or output anything for [CONTEXT N] lines.
 
-        Translate only the lines formatted as [index|duration|word_count].
+        Translate only the lines formatted as [index|duration|budget].
 
-        RULES:
-        1. Produce natural, spoken-style translations. NOT literal word-by-word.
-        2. Match the syllable count of the original as closely as possible for lip sync.
-        3. Each translation MUST be speakable within the given duration at ~4 syllables/second.
-        4. Prefer contractions and colloquial phrasing over formal/written style.
-        5. Preserve the emotional tone and intent, but freely rephrase for natural flow.
-        6. If a line is too long for the duration, shorten creatively while keeping meaning.
+        Every translation is spoken aloud by a TTS voice that talks at a fixed natural pace, and the audio must finish within the original line's duration. The system measures the generated audio afterwards: a translation that runs over gets mechanically sped up and becomes hard to understand. Running slightly short is completely fine, a small pause is added. When in doubt, ALWAYS pick the shorter phrasing.
+
+        LENGTH RULES (most important):
+        1. Each line's budget ("max N words" or "max N characters") is precomputed from its duration and the TTS speaking pace. Stay AT or UNDER the budget.
+        2. Fitting the budget beats literal completeness: drop fillers, hedges, and redundancy while keeping the message. Never pad a line that comes out short.
+           When you compress, NEVER cut content a learner acts on: negations, numbers, qualifiers like "again", "only", "first", or full technique names (keep "chain of thought prompting", not just "chain of thought").
+        3. #{target_lang} may need more words or syllables than English to say the same thing. Compress the phrasing up front, don't translate literally and hope it fits.
+
+        This is the right amount of compression (shown for English to Spanish, do the equivalent in #{target_lang}):
+        [3|3.8s|max 8 words] So, what we're going to do now is take a look at zero shot prompting.
+        BAD, literal, 15 words: Entonces, lo que vamos a hacer ahora es echar un vistazo al zero shot prompting.
+        GOOD, 6 words: Ahora veremos el zero shot prompting.
+
+        STYLE RULES:
+        4. Produce natural, spoken-style translations. NOT literal word-by-word.
+        5. Prefer contractions and colloquial phrasing over formal/written style.
+        6. Preserve the emotional tone and intent, but freely rephrase for natural flow.
         7. NEVER skip a line or leave it empty.
         8. NEVER use em-dashes, en-dashes, or hyphens as parenthetical separators. Use commas instead. The text will be read aloud by TTS.
         9. For technical terms with hyphens (like 'zero-shot'), write them as spoken words (like 'zero shot').

@@ -1,6 +1,62 @@
 require "rails_helper"
+require "tmpdir"
 
 RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
+  describe "#generate_tts_with_retranslation" do
+    let(:job) { described_class.new }
+
+    def call_with_slot(job, dir, slot_s: 4.0)
+      job.send(:generate_tts_with_retranslation,
+        text: "hola mundo esto es una prueba",
+        original_text: "hello world this is a test",
+        voice_id: "v1",
+        voice_settings: { stability: 0.5 },
+        slot_s: slot_s,
+        target_lang: "Spanish",
+        output_dir: dir,
+        index: 0)
+    end
+
+    around do |example|
+      Dir.mktmpdir do |dir|
+        @dir = dir
+        example.run
+      end
+    end
+
+    before do
+      allow(job).to receive(:write_tts_clip) { |_text, _voice, path, _settings| File.binwrite(path, "x") }
+    end
+
+    it "accepts the first clip when the needed speedup is within COMFORT_SPEED" do
+      allow(DubbingFfprobe).to receive(:duration_seconds).and_return(4.4) # 1.1x for a 4.0s slot
+      expect(job).not_to receive(:retranslate_shorter)
+
+      _path, text = call_with_slot(job, @dir)
+      expect(text).to eq("hola mundo esto es una prueba")
+    end
+
+    it "retranslates when the speedup would be audible even though it is under MAX_SPEED" do
+      allow(DubbingFfprobe).to receive(:duration_seconds).and_return(5.2, 3.0) # 1.3x, then fits
+      expect(job).to receive(:retranslate_shorter)
+        .with("hola mundo esto es una prueba", "hello world this is a test", 5.2, 4.0, "Spanish")
+        .once.and_return("hola mundo")
+
+      _path, text = call_with_slot(job, @dir)
+      expect(text).to eq("hola mundo")
+    end
+
+    it "keeps the shortest attempt when nothing fits" do
+      allow(DubbingFfprobe).to receive(:duration_seconds).and_return(8.0, 6.0, 7.0)
+      allow(job).to receive(:retranslate_shorter).and_return("intento dos", "intento tres")
+
+      path, text = call_with_slot(job, @dir)
+      expect(text).to eq("intento dos")
+      expect(File).to exist(path)
+      expect(File).not_to exist(File.join(@dir, "tts_0_best.mp3"))
+    end
+  end
+
   describe "#merge_segments_for_tts" do
     let(:job) { described_class.new }
 
