@@ -8,7 +8,6 @@ class DubbingTask < ApplicationRecord
   has_one_attached :vocals
   has_one_attached :background
   has_one_attached :dubbed_audio
-  has_one_attached :dubbed_video
 
   INTERMEDIATE_ATTACHMENTS = %i[
     audio
@@ -16,7 +15,6 @@ class DubbingTask < ApplicationRecord
     vocals
     background
     dubbed_audio
-    dubbed_video
   ].freeze
 
   enum :status, {

@@ -135,13 +135,13 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
       let!(:workspaces) { stub_dubbing_workspace }
 
       before do
-        # ffprobe and the mix script both go through capture3; the ffprobe call
-        # returns the duration string, the mix call returns success.
-        allow(Open3).to receive(:capture3).and_return([ "60.0", "", double(success?: true) ])
+        # ffprobe and the mix script both go through capture3
+        ffprobe_json = { format: { duration: "60.0" } }.to_json
+        allow(Open3).to receive(:capture3).and_return([ ffprobe_json, "", double(success?: true) ])
         allow(File).to receive(:write)
         # Skip ElevenLabs/TTS round-trips by zeroing-out the segments-to-voice loop.
         allow_any_instance_of(described_class).to receive(:merge_segments_for_tts).and_return([])
-        allow(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later)
+        allow(DubbingPipeline::CreateHlsJob).to receive(:perform_later)
       end
 
       it "attaches dubbed.m4a only after the mix script succeeds" do
@@ -150,8 +150,8 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
         expect(filenames).to eq([ "dubbed.m4a" ])
       end
 
-      it "enqueues CreateDubbedVideoJob" do
-        expect(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later).with(task.id)
+      it "enqueues CreateHlsJob" do
+        expect(DubbingPipeline::CreateHlsJob).to receive(:perform_later).with(task.id)
         described_class.new.perform(task.id)
       end
     end
@@ -159,7 +159,11 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
     context "when the mix script fails" do
       before do
         stub_dubbing_workspace
-        allow(Open3).to receive(:capture3).and_return([ "60.0", "boom", double(success?: false) ])
+        # ffprobe (first capture3) succeeds, the mix script (second) fails
+        allow(Open3).to receive(:capture3).and_return(
+          [ { format: { duration: "60.0" } }.to_json, "", double(success?: true) ],
+          [ "", "boom", double(success?: false) ]
+        )
         allow(File).to receive(:write)
         allow_any_instance_of(described_class).to receive(:merge_segments_for_tts).and_return([])
       end

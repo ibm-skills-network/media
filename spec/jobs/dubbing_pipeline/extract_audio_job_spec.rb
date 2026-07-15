@@ -25,7 +25,7 @@ RSpec.describe DubbingPipeline::ExtractAudioJob, type: :job do
           whitelist_idx = args.index("-protocol_whitelist")
           input_idx = args.index("-i")
           expect(whitelist_idx).to be_between(0, input_idx - 1)
-          expect(args[whitelist_idx + 1]).to eq("https,tls,tcp")
+          expect(args[whitelist_idx + 1]).to eq("http,https,tls,tcp")
         end
       end
 

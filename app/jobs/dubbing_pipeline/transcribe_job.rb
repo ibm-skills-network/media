@@ -1,14 +1,5 @@
 module DubbingPipeline
-  class TranscribeJob < ApplicationJob
-    queue_as :low
-
-    sidekiq_retries_exhausted do |msg, exception|
-      task = DubbingTask.find_by(id: msg["args"].first)
-      next unless task
-      task.update!(status: "failed", error_message: exception.message)
-      task.purge_pipeline_artifacts!(include_hls: true)
-    end
-
+  class TranscribeJob < BaseJob
     def perform(task_id)
       task = DubbingTask.find(task_id)
       return if task.failed? || task.success?
@@ -81,20 +72,14 @@ module DubbingPipeline
 
       marked_text = segments.each_with_index.map { |s, i| "[#{i}:#{format('%.2f', s["start"])}] #{s["text"]}" }.join(" ")
 
-      conn = Faraday.new do |f|
-        f.options.timeout = 600
-        f.options.open_timeout = 10
-      end
-      response = conn.post("https://api.openai.com/v1/chat/completions") do |req|
-        req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
-        req.headers["Content-Type"] = "application/json"
-        req.body = {
-          model: "gpt-5-mini",
-          response_format: { type: "json_object" },
-          messages: [
-            {
-              role: "system",
-              content: <<~PROMPT
+      content = OpenaiChat.complete(
+        label: "GPT sentence-merge",
+        response_format: { type: "json_object" },
+        timeout: 600,
+        messages: [
+          {
+            role: "system",
+            content: <<~PROMPT
                 You are a transcript editor preparing text for dubbing translation.
 
                 The input is auto-transcribed speech chopped into fragments by a speech recognizer. Many fragments are MID-SENTENCE and must be merged before translation.
@@ -110,16 +95,13 @@ module DubbingPipeline
                 - NEVER use em-dashes or en-dashes. Use commas or periods instead. The text will be spoken aloud by TTS.
                 - For hyphenated technical terms (zero-shot, chain-of-thought), remove the hyphens
                 - Return a JSON object: {"sentences": [{"start_marker": "[0:1.23]", "text": "Complete sentence."}]}
-              PROMPT
-            },
-            { role: "user", content: marked_text }
-          ]
-        }.to_json
-      end
+            PROMPT
+          },
+          { role: "user", content: marked_text }
+        ]
+      )
 
-      raise "GPT sentence-merge failed: HTTP #{response.status}" unless response.success?
-
-      parsed = JSON.parse(JSON.parse(response.body)["choices"][0]["message"]["content"])
+      parsed = JSON.parse(content)
       data = parsed["sentences"]
       unless data.is_a?(Array)
         Rails.logger.warn("[TranscribeJob] GPT returned no sentences array for merge: #{parsed.inspect[0, 200]}")

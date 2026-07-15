@@ -4,7 +4,7 @@ RSpec.describe DubbingPipeline::CleanupJob, type: :job do
   let(:task) do
     create(:dubbing_task,
       :with_audio, :with_source_video, :with_vocals, :with_background,
-      :with_dubbed_audio, :with_dubbed_video,
+      :with_dubbed_audio,
       hls_path: "https://cos.example.com/dubbing/1/hls/master.m3u8"
     )
   end
