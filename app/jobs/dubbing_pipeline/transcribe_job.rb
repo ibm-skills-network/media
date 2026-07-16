@@ -2,6 +2,24 @@ module DubbingPipeline
   class TranscribeJob < ApplicationJob
     queue_as :low
 
+    # The transcription request is streamed (SSE) rather than waited on as one
+    # big response: non-streamed requests sit idle while OpenAI processes, and
+    # past ~5 minutes of processing the idle connection gets dropped and the
+    # response never arrives (observed: 60s of audio -> 22s, 7min -> 275s,
+    # 10min -> hangs until the read timeout). With streaming, segment events
+    # flow as they're transcribed, so the connection never looks idle.
+    #
+    # Wire format (captured from the live API 2026-07-16): CRLF-delimited SSE,
+    # `transcript.text.segment` events with speaker/start/end/text, then one
+    # `transcript.text.done` event and a `data: [DONE]` sentinel.
+    #
+    # READ_GAP_TIMEOUT only bounds silence between socket reads, and keep-alive
+    # bytes reset it -- so a wall-clock deadline scaled to the audio length
+    # backstops streams that trickle bytes without ever finishing.
+    READ_GAP_TIMEOUT = 120
+    OVERALL_TIMEOUT_BASE = 300
+    ERROR_BODY_LIMIT = 2_000
+
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg["args"].first)
       next unless task
@@ -29,25 +47,7 @@ module DubbingPipeline
         )
         raise "ffmpeg compression failed: #{stderr}" unless status.success?
 
-        conn = Faraday.new do |f|
-          f.request :multipart
-          f.options.timeout = 300
-          f.options.open_timeout = 10
-        end
-
-        file = Faraday::Multipart::FilePart.new(ogg_path, "audio/ogg")
-        response = conn.post("https://api.openai.com/v1/audio/transcriptions") do |req|
-          req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
-          req.body = {
-            file: file,
-            model: "gpt-4o-transcribe-diarize",
-            response_format: "diarized_json",
-            chunking_strategy: "auto"
-          }
-        end
-        raise "Transcription failed: HTTP #{response.status}" unless response.success?
-
-        JSON.parse(response.body)["segments"] || []
+        stream_transcription(ogg_path)
       end
 
       speaker_id_map = {}
@@ -66,6 +66,10 @@ module DubbingPipeline
         }
       end
 
+      # An empty transcript would sail through translation and TTS into a
+      # silent dub; fail the task loudly instead.
+      raise "Transcription returned no speech segments" if raw_segments.empty?
+
       Rails.logger.info("[TranscribeJob] Got #{raw_segments.size} segments, #{speaker_id_map.size} speaker(s)")
 
       segments = merge_into_sentences(raw_segments)
@@ -75,6 +79,78 @@ module DubbingPipeline
     end
 
     private
+
+    # Collects transcript.text.segment SSE events into the same segment hashes
+    # the non-streamed diarized_json response would return
+    def stream_transcription(ogg_path)
+      audio_s = DubbingFfprobe.duration_seconds(ogg_path)
+      overall_timeout = OVERALL_TIMEOUT_BASE + 2 * audio_s
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + overall_timeout
+
+      segments = []
+      event_counts = Hash.new(0)
+      done = false
+      error_body = +""
+      sse = SseBuffer.new
+
+      conn = Faraday.new do |f|
+        f.request :multipart
+        f.options.timeout = READ_GAP_TIMEOUT
+        f.options.open_timeout = 10
+      end
+
+      response = conn.post("https://api.openai.com/v1/audio/transcriptions") do |req|
+        req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
+        req.body = {
+          file: Faraday::Multipart::FilePart.new(ogg_path, "audio/ogg"),
+          model: "gpt-4o-transcribe-diarize",
+          response_format: "diarized_json",
+          chunking_strategy: "auto",
+          stream: "true"
+        }
+        req.options.on_data = proc do |chunk, _received_bytes, env|
+          # Some adapters don't expose the status mid-stream; treat unknown as OK
+          # and let the final response check catch failures.
+          if env.status && env.status != 200
+            error_body << chunk if error_body.bytesize < ERROR_BODY_LIMIT
+            next
+          end
+
+          if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+            raise "Transcription exceeded #{overall_timeout.round}s deadline for #{audio_s.round}s of audio"
+          end
+
+          sse.feed(chunk).each do |payload|
+            if payload == "[DONE]"
+              done = true
+              next
+            end
+
+            event = parse_stream_event(payload)
+            event_counts[event["type"]] += 1
+            done = true if event["type"] == "transcript.text.done"
+            segments << event if event["type"] == "transcript.text.segment"
+          end
+        end
+      end
+
+      unless response.success?
+        raise "Transcription failed: HTTP #{response.status}: #{error_body.byteslice(0, 500)}"
+      end
+      unless done
+        raise "Transcription stream ended without a terminal event, likely truncated " \
+              "(events so far: #{event_counts.inspect})"
+      end
+
+      Rails.logger.info("[TranscribeJob] stream complete: #{event_counts.inspect}")
+      segments
+    end
+
+    def parse_stream_event(payload)
+      JSON.parse(payload)
+    rescue JSON::ParserError
+      raise "Transcription stream sent an unparseable event: #{payload.byteslice(0, 200)}"
+    end
 
     def merge_into_sentences(segments)
       return segments if segments.empty?
