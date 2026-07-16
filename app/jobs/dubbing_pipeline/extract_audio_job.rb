@@ -1,6 +1,13 @@
 module DubbingPipeline
-  class ExtractAudioJob < BaseJob
+  class ExtractAudioJob < ApplicationJob
     queue_as :gpu
+
+    sidekiq_retries_exhausted do |msg, exception|
+      task = DubbingTask.find_by(id: msg["args"].first)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
+    end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
@@ -16,7 +23,7 @@ module DubbingPipeline
         # file://, concat:, pipe: even when a redirect or playlist asks for them
         _stdout, stderr, status = Open3.capture3(
           "ffmpeg", "-y",
-          "-protocol_whitelist", "http,https,tls,tcp",
+          "-protocol_whitelist", "https,tls,tcp",
           "-i", task.video_url,
           "-map", "0:a:0", "-acodec", "pcm_s16le", "-ar", "44100", "-ac", "2", audio_path,
           "-map", "0:v:0", "-c:v", "copy", "-an", source_video_path

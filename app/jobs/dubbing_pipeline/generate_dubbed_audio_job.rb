@@ -1,11 +1,21 @@
 module DubbingPipeline
-  class GenerateDubbedAudioJob < BaseJob
+  class GenerateDubbedAudioJob < ApplicationJob
+    queue_as :low
+
     MAX_GAP_S = 1.0
     MAX_MERGED_DURATION_S = 15.0
     MAX_RETRANSLATE_ATTEMPTS = 2
+    MAX_SPEED = 1.35
     # Above this speedup, retranslating is worth trying before accepting the clip
     COMFORT_SPEED = 1.15
     SLOT_PAD_S = 0.5
+
+    sidekiq_retries_exhausted do |msg, exception|
+      task = DubbingTask.find_by(id: msg["args"].first)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
+    end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
@@ -19,21 +29,14 @@ module DubbingPipeline
         merged_segments = merge_segments_for_tts(task.segments)
         total_s = DubbingFfprobe.duration_seconds(background_path)
 
-        # One catalog lookup per speaker, so a cache refresh mid-run can't switch a speaker's voice
-        voice_id_by_speaker = Hash.new { |cache, speaker| cache[speaker] = task.voice_for(speaker) }
-
         tts_files = []
         merged_segments.each_with_index do |seg, i|
           next if seg["translated_text"].to_s.strip.empty?
 
-          voice_id = voice_id_by_speaker[seg["speaker"]]
+          voice_id = task.voice_for(seg["speaker"])
           sanitized_text = sanitize_for_tts(seg["translated_text"])
           slot_s = compute_slot_seconds(merged_segments, i, total_s)
-          if slot_s <= 0.1
-            Rails.logger.warn("[GenerateDubbedAudioJob] segment #{i} gets no TTS clip: " \
-                              "#{slot_s.round(2)}s slot (overlapping or out-of-order segments)")
-            next
-          end
+          next if slot_s <= 0.1
 
           clip_path, final_text = generate_tts_with_retranslation(
             text: sanitized_text,
@@ -47,8 +50,7 @@ module DubbingPipeline
           )
 
           merged_segments[i]["translated_text"] = final_text
-          # slot_s rides along so the mix script uses the same slot the TTS text was sized for
-          tts_files << { index: i, path: clip_path, slot_s: slot_s }
+          tts_files << { index: i, path: clip_path }
         end
 
         segments_file = ws.path("mix_segments.json")
@@ -73,7 +75,7 @@ module DubbingPipeline
         ws.attach(task.dubbed_audio, "dubbed.m4a", content_type: "audio/mp4")
       end
 
-      DubbingPipeline::CreateHlsJob.perform_later(task_id)
+      DubbingPipeline::CreateDubbedVideoJob.perform_later(task_id)
     end
 
     private
@@ -152,7 +154,8 @@ module DubbingPipeline
         current_text = retranslate_shorter(current_text, original_text, clip_ms / 1000.0, slot_s, target_lang)
       end
 
-      # Nothing fit comfortably: keep the shortest attempt, mix script speeds it up or trims it
+      # Nothing fit comfortably: keep the shortest attempt and let Python
+      # speed it up (capped at MAX_SPEED) or trim as a last resort.
       Rails.logger.warn(
         "[GenerateDubbedAudioJob] segment #{index} still #{(best[:clip_ms] / 1000.0).round(1)}s " \
         "for a #{slot_s.round(1)}s slot after #{MAX_RETRANSLATE_ATTEMPTS} retranslations"
@@ -181,16 +184,23 @@ module DubbingPipeline
     end
 
     def retranslate_shorter(text, original_text, clip_s, slot_s, target_lang)
-      # Measured clip/slot ratio converts directly into a word budget, no pace estimate needed
+      # The clip/slot ratio is measured from real audio, so it converts directly
+      # into a word budget the model can aim at without estimating pace itself.
       current_words = text.split.length
       target_words = [ (current_words * slot_s / clip_s).floor, 3 ].max
-      OpenaiChat.complete(
-        label: "GPT retranslate",
-        timeout: 60,
-        messages: [
-          {
-            role: "system",
-            content: <<~PROMPT
+      conn = Faraday.new do |f|
+        f.options.timeout = 60
+        f.options.open_timeout = 10
+      end
+      response = conn.post("https://api.openai.com/v1/chat/completions") do |req|
+        req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
+        req.headers["Content-Type"] = "application/json"
+        req.body = {
+          model: "gpt-5-mini",
+          messages: [
+            {
+              role: "system",
+              content: <<~PROMPT
                 You are a dubbing translator. The previous #{target_lang} translation was synthesized to speech and the audio came out too long: it takes #{clip_s.round(1)}s to speak but only #{slot_s.round(1)}s is available. Rewrite it in AT MOST #{target_words} words (it currently has #{current_words}) while preserving the speaker's intent. Shorter than #{target_words} words is even better.
 
                 Prefer:
@@ -217,14 +227,18 @@ module DubbingPipeline
                 Tighter: "This directly affects performance."
 
                 Return ONLY the tighter #{target_lang} translation. No quotes, no commentary, no language label.
-            PROMPT
-          },
-          {
-            role: "user",
-            content: "Original: #{original_text}\nToo-long translation: #{text}"
-          }
-        ]
-      ).strip
+              PROMPT
+            },
+            {
+              role: "user",
+              content: "Original: #{original_text}\nToo-long translation: #{text}"
+            }
+          ]
+        }.to_json
+      end
+      raise "GPT retranslate failed: HTTP #{response.status}" unless response.success?
+
+      JSON.parse(response.body)["choices"][0]["message"]["content"].strip
     end
   end
 end

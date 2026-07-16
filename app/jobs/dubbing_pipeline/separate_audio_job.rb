@@ -1,6 +1,13 @@
 module DubbingPipeline
-  class SeparateAudioJob < BaseJob
+  class SeparateAudioJob < ApplicationJob
     queue_as :gpu
+
+    sidekiq_retries_exhausted do |msg, exception|
+      task = DubbingTask.find_by(id: msg["args"].first)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
+    end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)

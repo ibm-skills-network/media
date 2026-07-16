@@ -1,12 +1,20 @@
 module DubbingPipeline
-  class CreateHlsJob < BaseJob
+  class CreateHlsJob < ApplicationJob
+    queue_as :low
+
+    sidekiq_retries_exhausted do |msg, exception|
+      task = DubbingTask.find_by(id: msg["args"].first)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
+    end
+
     def perform(task_id)
       task = DubbingTask.find(task_id)
       return if task.failed? || task.success?
 
       hls_master_url = DubbingWorkspace.with("#{task_id}-hls") do |ws|
-        # source.mp4 is video-only; audio ships as separate HLS tracks
-        source_video_path = ws.fetch(task.source_video, "source.mp4")
+        dubbed_video_path = ws.fetch(task.dubbed_video, "dubbed.mp4")
         audio_path = ws.fetch(task.audio, "audio.wav")
         dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.m4a")
 
@@ -15,7 +23,7 @@ module DubbingPipeline
         hls_dir = File.join(ws.dir, "hls")
         FileUtils.mkdir_p(hls_dir)
 
-        duration = DubbingFfprobe.duration_seconds(source_video_path)
+        duration = DubbingFfprobe.duration_seconds(dubbed_video_path)
         lang_code = task.lang_code
         raise "CreateHlsJob: target language cannot equal source '#{DubbingTask::SOURCE_LANG_CODE}'" if lang_code == DubbingTask::SOURCE_LANG_CODE
 
@@ -34,7 +42,7 @@ module DubbingPipeline
 
         # Video-only stream, fMP4 segments are required for swappable audio tracks
         run_ffmpeg!(
-          "-i", source_video_path, "-an", "-c:v", "copy",
+          "-i", dubbed_video_path, "-an", "-c:v", "copy",
           "-f", "hls", "-hls_time", "6",
           "-hls_segment_type", "fmp4",
           "-hls_segment_filename", File.join(hls_dir, "seg_v_%03d.mp4"),

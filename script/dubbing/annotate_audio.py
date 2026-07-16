@@ -27,24 +27,27 @@ SAMPLE_RATE = 16000
 FEMALE_PITCH_HZ = 165
 
 
-def voiced_pitch(chunk, sr):
-    """One pyin pass per segment; the result feeds both gender (median) and
-    prosody (variance) so pitch isn't tracked twice."""
-    if len(chunk) < int(sr * 0.1):
-        return np.array([])
-    f0, _, _ = librosa.pyin(chunk, fmin=50, fmax=500, sr=sr)
-    return f0[~np.isnan(f0)] if f0 is not None else np.array([])
+def median_pitch(chunk, sr):
+    if len(chunk) < int(sr * 0.5):
+        return None
+    f0 = librosa.yin(chunk.astype(float), fmin=50, fmax=500, sr=sr)
+    voiced = f0[(f0 > 50) & (f0 < 500)]
+    return float(np.median(voiced)) if len(voiced) > 0 else None
 
 
-def analyze_prosody(chunk, f0_valid):
+def analyze_prosody(y, sr, start, end):
     """
     Energy + pitch trend of an audio segment -> TTS style (excited/soft/expressive/neutral)
     """
-    if len(chunk) < int(SAMPLE_RATE * 0.1):
+    chunk = y[int(start * sr):int(end * sr)]
+    if len(chunk) < int(sr * 0.1):
         return "neutral"
 
     rms = librosa.feature.rms(y=chunk)[0]
     rms_db = librosa.amplitude_to_db(np.array([float(np.mean(rms))]), ref=1.0)[0]
+
+    f0, _, _ = librosa.pyin(chunk, fmin=50, fmax=500, sr=sr)
+    f0_valid = f0[~np.isnan(f0)] if f0 is not None else np.array([])
 
     if rms_db > -15:
         energy = "high"
@@ -76,17 +79,12 @@ def main():
 
     y, sr = librosa.load(args.audio_path, sr=SAMPLE_RATE)
 
-    # chunks are views into y; f0 is reused below for both gender and prosody
-    seg_audio = []
+    speaker_pitches = {}
     for seg in segments:
         chunk = y[int(seg["start"] * sr):int(seg["end"] * sr)]
-        seg_audio.append((chunk, voiced_pitch(chunk, sr)))
-
-    speaker_pitches = {}
-    for seg, (chunk, f0_valid) in zip(segments, seg_audio):
-        # gender medians only from segments long enough to be reliable
-        if len(chunk) >= int(sr * 0.5) and len(f0_valid) > 0:
-            speaker_pitches.setdefault(seg["speaker"], []).append(float(np.median(f0_valid)))
+        pitch = median_pitch(chunk, sr)
+        if pitch is not None:
+            speaker_pitches.setdefault(seg["speaker"], []).append(pitch)
 
     pitch_gender = {
         speaker: ("woman" if float(np.mean(pitches)) > FEMALE_PITCH_HZ else "man")
@@ -121,9 +119,9 @@ def main():
             votes = speaker_gender_votes.get(speaker, {})
             speaker_gender[speaker] = max(votes, key=votes.get) if votes else "man"
 
-    for seg, (chunk, f0_valid) in zip(segments, seg_audio):
+    for seg in segments:
         seg["gender"] = speaker_gender[seg["speaker"]]
-        seg["prosody"] = analyze_prosody(chunk, f0_valid)
+        seg["prosody"] = analyze_prosody(y, sr, seg["start"], seg["end"])
 
     print(json.dumps(segments))
 

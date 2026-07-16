@@ -69,11 +69,6 @@ class ElevenlabsVoiceCatalog
     end
 
     def http_client
-        @http_client ||= Faraday.new(url: "https://api.elevenlabs.io") do |f|
-            # languages() fans out one call per supported language, so a hung
-            # connection must not pin the serving request thread
-            f.options.timeout = 15
-            f.options.open_timeout = 5
-        end
+        @http_client ||= Faraday.new(url: "https://api.elevenlabs.io")
     end
 end

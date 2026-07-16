@@ -1,13 +1,13 @@
 module DubbingPipeline
-  class TranscribeJob < BaseJob
-    # The transcription request is streamed (SSE) rather than waited on as one
-    # big response: non-streamed requests sit idle while OpenAI processes, and
-    # past ~5 minutes of processing the idle connection gets dropped and the
-    # response never arrives (observed: 60s of audio -> 22s, 7min -> 275s,
-    # 10min -> hangs until the read timeout). With streaming, segment events
-    # flow as they're transcribed, so the connection never looks idle and no
-    # timeout has to cover the whole file -- only the gap between events.
-    EVENT_GAP_TIMEOUT = 120
+  class TranscribeJob < ApplicationJob
+    queue_as :low
+
+    sidekiq_retries_exhausted do |msg, exception|
+      task = DubbingTask.find_by(id: msg["args"].first)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
+    end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
@@ -29,7 +29,25 @@ module DubbingPipeline
         )
         raise "ffmpeg compression failed: #{stderr}" unless status.success?
 
-        stream_transcription(ogg_path)
+        conn = Faraday.new do |f|
+          f.request :multipart
+          f.options.timeout = 300
+          f.options.open_timeout = 10
+        end
+
+        file = Faraday::Multipart::FilePart.new(ogg_path, "audio/ogg")
+        response = conn.post("https://api.openai.com/v1/audio/transcriptions") do |req|
+          req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
+          req.body = {
+            file: file,
+            model: "gpt-4o-transcribe-diarize",
+            response_format: "diarized_json",
+            chunking_strategy: "auto"
+          }
+        end
+        raise "Transcription failed: HTTP #{response.status}" unless response.success?
+
+        JSON.parse(response.body)["segments"] || []
       end
 
       speaker_id_map = {}
@@ -58,70 +76,25 @@ module DubbingPipeline
 
     private
 
-    # Collects transcript.text.segment SSE events into the same segment hashes
-    # the non-streamed diarized_json response would return
-    def stream_transcription(ogg_path)
-      segments = []
-      buffer = +""
-
-      conn = Faraday.new do |f|
-        f.request :multipart
-        f.options.timeout = EVENT_GAP_TIMEOUT
-        f.options.open_timeout = 10
-      end
-
-      response = conn.post("https://api.openai.com/v1/audio/transcriptions") do |req|
-        req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
-        req.body = {
-          file: Faraday::Multipart::FilePart.new(ogg_path, "audio/ogg"),
-          model: "gpt-4o-transcribe-diarize",
-          response_format: "diarized_json",
-          chunking_strategy: "auto",
-          stream: "true"
-        }
-        req.options.on_data = proc do |chunk, _received_bytes, env|
-          next unless env.status == 200
-
-          buffer << chunk
-          segments.concat(drain_segment_events(buffer))
-        end
-      end
-      raise "Transcription failed: HTTP #{response.status}" unless response.success?
-
-      segments
-    end
-
-    # Consumes complete SSE events from the front of the buffer, leaving any
-    # partial trailing event in place for the next chunk of bytes
-    def drain_segment_events(buffer)
-      events = []
-      while (boundary = buffer.index("\n\n"))
-        block = buffer.slice!(0, boundary + 2)
-        block.each_line do |line|
-          payload = line.delete_prefix("data:").strip
-          next if payload == line.strip # not a data line
-          next if payload.empty? || payload == "[DONE]"
-
-          event = JSON.parse(payload)
-          events << event if event["type"] == "transcript.text.segment"
-        end
-      end
-      events
-    end
-
     def merge_into_sentences(segments)
       return segments if segments.empty?
 
       marked_text = segments.each_with_index.map { |s, i| "[#{i}:#{format('%.2f', s["start"])}] #{s["text"]}" }.join(" ")
 
-      content = OpenaiChat.complete(
-        label: "GPT sentence-merge",
-        response_format: { type: "json_object" },
-        timeout: 600,
-        messages: [
-          {
-            role: "system",
-            content: <<~PROMPT
+      conn = Faraday.new do |f|
+        f.options.timeout = 600
+        f.options.open_timeout = 10
+      end
+      response = conn.post("https://api.openai.com/v1/chat/completions") do |req|
+        req.headers["Authorization"] = "Bearer #{ENV['OPENAI_API_KEY']}"
+        req.headers["Content-Type"] = "application/json"
+        req.body = {
+          model: "gpt-5-mini",
+          response_format: { type: "json_object" },
+          messages: [
+            {
+              role: "system",
+              content: <<~PROMPT
                 You are a transcript editor preparing text for dubbing translation.
 
                 The input is auto-transcribed speech chopped into fragments by a speech recognizer. Many fragments are MID-SENTENCE and must be merged before translation.
@@ -137,13 +110,16 @@ module DubbingPipeline
                 - NEVER use em-dashes or en-dashes. Use commas or periods instead. The text will be spoken aloud by TTS.
                 - For hyphenated technical terms (zero-shot, chain-of-thought), remove the hyphens
                 - Return a JSON object: {"sentences": [{"start_marker": "[0:1.23]", "text": "Complete sentence."}]}
-            PROMPT
-          },
-          { role: "user", content: marked_text }
-        ]
-      )
+              PROMPT
+            },
+            { role: "user", content: marked_text }
+          ]
+        }.to_json
+      end
 
-      parsed = JSON.parse(content)
+      raise "GPT sentence-merge failed: HTTP #{response.status}" unless response.success?
+
+      parsed = JSON.parse(JSON.parse(response.body)["choices"][0]["message"]["content"])
       data = parsed["sentences"]
       unless data.is_a?(Array)
         Rails.logger.warn("[TranscribeJob] GPT returned no sentences array for merge: #{parsed.inspect[0, 200]}")

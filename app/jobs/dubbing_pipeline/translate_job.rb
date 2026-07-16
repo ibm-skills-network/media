@@ -1,5 +1,7 @@
 module DubbingPipeline
-  class TranslateJob < BaseJob
+  class TranslateJob < ApplicationJob
+    queue_as :low
+
     BATCH_SIZE = 15
     CONTEXT_OVERLAP = 2
     MAX_CONCURRENCY = 5
@@ -22,6 +24,13 @@ module DubbingPipeline
     DEFAULT_BUDGET_RATE = [ 2.4, "words" ].freeze
     MIN_WORD_BUDGET = 3
 
+    sidekiq_retries_exhausted do |msg, exception|
+      task = DubbingTask.find_by(id: msg["args"].first)
+      next unless task
+      task.update!(status: "failed", error_message: exception.message)
+      task.purge_pipeline_artifacts!(include_hls: true)
+    end
+
     def perform(task_id)
       task = DubbingTask.find(task_id)
       return if task.failed? || task.success?
@@ -43,7 +52,7 @@ module DubbingPipeline
       end
       if missing.any?
         Rails.logger.warn("[TranslateJob] #{missing.size} segments fell back to source text: #{missing.first(10).inspect}")
-        if missing.size > segments.size / 10.0
+        if missing.size > segments.size / 10
           raise "Translation incomplete: #{missing.size}/#{segments.size} segments missing translations"
         end
       end
@@ -82,9 +91,7 @@ module DubbingPipeline
         failure_count = 0
         futures.each_with_index do |future, idx|
           result = future.value!(BATCH_TIMEOUT_S + 100)
-          # value! only raises on rejection; a timed-out future returns nil
-          raise "batch #{idx} timed out after #{BATCH_TIMEOUT_S + 100}s" if result.nil?
-          translations.merge!(result)
+          translations.merge!(result) if result.is_a?(Hash)
         rescue => e
           Rails.logger.error("[TranslateJob] batch #{idx} failed: #{e.class}: #{e.message}")
           failure_count += 1
@@ -130,14 +137,25 @@ module DubbingPipeline
       end
       payload_text = lines.join("\n")
 
-      result = OpenaiChat.complete(
-        label: "GPT translate",
-        timeout: BATCH_TIMEOUT_S,
-        messages: [
-          { role: "system", content: system_prompt(target_lang) },
-          { role: "user", content: payload_text }
-        ]
-      )
+      conn = Faraday.new do |f|
+        f.options.timeout = BATCH_TIMEOUT_S
+        f.options.open_timeout = 10
+      end
+      response = conn.post("https://api.openai.com/v1/chat/completions") do |req|
+        req.headers["Authorization"] = "Bearer #{ENV["OPENAI_API_KEY"]}"
+        req.headers["Content-Type"] = "application/json"
+        req.body = {
+          model: "gpt-5-mini",
+          messages: [
+            { role: "system", content: system_prompt(target_lang) },
+            { role: "user", content: payload_text }
+          ]
+        }.to_json
+      end
+
+      raise "GPT translate failed: HTTP #{response.status}" unless response.success?
+
+      result = JSON.parse(response.body)["choices"][0]["message"]["content"].to_s
 
       parsed = {}
       result.split("\n").each do |line|

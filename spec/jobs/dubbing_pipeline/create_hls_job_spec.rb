@@ -4,7 +4,7 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
   # Build the task before stubbing File.* so the factory's attachment writes
   # can actually hit ActiveStorage's disk service.
   let!(:task) do
-    create(:dubbing_task, :with_audio, :with_dubbed_audio, :with_source_video,
+    create(:dubbing_task, :with_audio, :with_dubbed_audio, :with_dubbed_video,
       segments: [
         { "start" => 0.0, "end" => 1.0, "text" => "Hi", "translated_text" => "Hola", "speaker" => "SPEAKER_0" }
       ],
@@ -14,9 +14,8 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
 
   before do
     stub_dubbing_workspace
-    # ffprobe + every ffmpeg pass funnel through Open3.capture3; ffmpeg ignores the stdout
-    ffprobe_json = { format: { duration: "10.0" } }.to_json
-    allow(Open3).to receive(:capture3).and_return([ ffprobe_json, "", double(success?: true) ])
+    # ffprobe duration + every ffmpeg HLS pass all funnel through Open3.capture3.
+    allow(Open3).to receive(:capture3).and_return([ "10.0", "", double(success?: true) ])
     allow(FileUtils).to receive(:mkdir_p)
     allow(File).to receive(:write)
     allow(File).to receive(:open).and_yield(StringIO.new)

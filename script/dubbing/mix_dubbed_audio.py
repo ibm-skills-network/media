@@ -15,6 +15,7 @@ MAX_SPEED = 1.35
 MIN_SPEED = 0.85
 FADE_MS = 15
 MIN_SLOT_MS = 100
+SLOT_PAD_MS = 500
 
 SILENCE_THRESHOLD_DBFS = -40.0
 SILENCE_MIN_DURATION_S = 0.5
@@ -174,16 +175,18 @@ def detect_silent_regions(audio_path):
     return regions
 
 
-def slots_from_tts_files(segments, tts_files, total_ms):
-    """Slot boundaries come from the Ruby side, which sized each clip's TTS text to them"""
+def compute_slots(segments, indices_with_tts, total_ms):
     slots = {}
-    for f in tts_files:
-        i = f["index"]
-        if i >= len(segments):
-            continue
-        slot_start = max(0, int(segments[i]["start"] * 1000))
-        slot_end = min(total_ms, slot_start + int(f["slot_s"] * 1000))
-        slots[i] = (slot_start, slot_end)
+    for pos, i in enumerate(indices_with_tts):
+        slot_start = int(segments[i]["start"] * 1000)
+        next_clip_start = (
+            int(segments[indices_with_tts[pos + 1]]["start"] * 1000)
+            if pos + 1 < len(indices_with_tts)
+            else total_ms
+        )
+        seg_end_ms = int(segments[i]["end"] * 1000) + SLOT_PAD_MS
+        slot_end = min(next_clip_start, seg_end_ms)
+        slots[i] = (max(0, slot_start), min(total_ms, slot_end))
     return slots
 
 
@@ -403,7 +406,7 @@ def main():
 
     tts_map = {f["index"]: f["path"] for f in tts_files}
     indices_with_tts = sorted(i for i in tts_map.keys() if i < len(segments))
-    slots = slots_from_tts_files(segments, tts_files, total_ms)
+    slots = compute_slots(segments, indices_with_tts, total_ms)
 
     tts_track_path = os.path.join(args.output_dir, "tts_track.wav")
     if indices_with_tts:
