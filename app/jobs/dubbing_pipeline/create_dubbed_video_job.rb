@@ -18,7 +18,7 @@ module DubbingPipeline
         dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.m4a")
         dubbed_video_path = ws.path("dubbed.mp4")
 
-        # Mux silent source video with dubbed audio; video stream is copied as-is.
+        # Mux silent source video with dubbed audio; video stream is copied as-is
         _stdout, stderr, status = Open3.capture3(
           "ffmpeg", "-y",
           "-i", source_path,

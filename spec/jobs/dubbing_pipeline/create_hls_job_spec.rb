@@ -2,7 +2,7 @@ require "rails_helper"
 
 RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
   # Build the task before stubbing File.* so the factory's attachment writes
-  # can actually hit ActiveStorage's disk service.
+  # can actually hit ActiveStorage's disk service
   let!(:task) do
     create(:dubbing_task, :with_audio, :with_dubbed_audio, :with_dubbed_video,
       segments: [
@@ -14,7 +14,7 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
 
   before do
     stub_dubbing_workspace
-    # ffprobe duration + every ffmpeg HLS pass all funnel through Open3.capture3.
+    # ffprobe duration + every ffmpeg HLS pass all funnel through Open3.capture3
     allow(Open3).to receive(:capture3).and_return([ "10.0", "", double(success?: true) ])
     allow(FileUtils).to receive(:mkdir_p)
     allow(File).to receive(:write)

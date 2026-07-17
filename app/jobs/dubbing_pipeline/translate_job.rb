@@ -9,7 +9,7 @@ module DubbingPipeline
     MAX_BATCH_RETRIES = 3
 
     # Speaking pace per language, ~10% below measured TTS output so compliant
-    # lines still fit slower voices. CJK is measured in characters.
+    # lines still fit slower voices. CJK is measured in characters
     LENGTH_BUDGET_RATES = {
       "Spanish"    => [ 2.3, "words" ],
       "Italian"    => [ 2.3, "words" ],

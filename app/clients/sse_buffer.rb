@@ -1,6 +1,6 @@
 # Incremental SSE parser: feed() raw bytes as they arrive, get back the data
 # payload of each completed event. Handles CRLF or LF delimiters, events split
-# anywhere across chunks, multi-line data fields, and keep-alive comment lines.
+# anywhere across chunks, multi-line data fields, and keep-alive comment lines
 class SseBuffer
   def initialize
     @buffer = String.new(encoding: Encoding::BINARY)

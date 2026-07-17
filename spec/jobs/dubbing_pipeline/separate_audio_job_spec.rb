@@ -21,7 +21,7 @@ RSpec.describe DubbingPipeline::SeparateAudioJob, type: :job do
       it "fetches audio.wav from the task's attached audio" do
         described_class.new.perform(task.id)
         # The fake workspace records nothing on fetch, but the SUT calls Open3 with
-        # the path it gets back; we just confirm Open3 was invoked once.
+        # the path it gets back; we just confirm Open3 was invoked once
         expect(Open3).to have_received(:capture3).once
       end
 

@@ -190,7 +190,7 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
         # Covers both ffprobe (duration string) and the mix script (success)
         allow(Open3).to receive(:capture3).and_return([ "60.0", "", double(success?: true) ])
         allow(File).to receive(:write)
-        # Skip ElevenLabs/TTS round-trips by zeroing-out the segments-to-voice loop.
+        # Skip ElevenLabs/TTS round-trips by zeroing-out the segments-to-voice loop
         allow_any_instance_of(described_class).to receive(:merge_segments_for_tts).and_return([])
         allow(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later)
       end

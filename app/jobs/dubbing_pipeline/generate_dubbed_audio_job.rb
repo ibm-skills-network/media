@@ -86,7 +86,7 @@ module DubbingPipeline
 
     private
 
-    # Combine adjacent same-speaker segments so TTS gets longer phrases to voice naturally.
+    # Combine adjacent same-speaker segments so TTS gets longer phrases to voice naturally
     def merge_segments_for_tts(segments)
       return [] if segments.empty?
 
@@ -122,9 +122,9 @@ module DubbingPipeline
       merged
     end
 
-    # The subtitle snapshot predates retranslation, so it can show text the
-    # dub no longer speaks. Collapse each retranslated range into one cue with
-    # the spoken text; untouched cues keep their original timing.
+    # The subtitle snapshot predates retranslation, so it can show text the dub
+    # no longer speaks. Collapse each retranslated range into one cue with the
+    # spoken text; untouched cues keep their original timing
     def rebuild_subtitle_segments(subtitles, merged_segments, source_count)
       return subtitles if subtitles.blank?
 

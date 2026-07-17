@@ -2,11 +2,10 @@ module DubbingPipeline
   class TranscribeJob < ApplicationJob
     queue_as :low
 
-    # The transcription request is streamed (SSE): non-streamed requests sit
-    # idle while OpenAI processes and get dropped after ~5 minutes, so long
-    # audio never gets a response. READ_GAP_TIMEOUT bounds silence between
-    # reads; the wall-clock deadline (scaled to audio length) catches streams
-    # that trickle keep-alive bytes without finishing.
+    # Streamed (SSE) because non-streamed requests sit idle while OpenAI processes
+    # and get dropped after ~5 minutes, so long audio never gets a response;
+    # READ_GAP_TIMEOUT bounds silence between reads and the wall-clock deadline
+    # (scaled to audio length) catches streams that trickle keep-alives forever
     READ_GAP_TIMEOUT = 120
     OVERALL_TIMEOUT_BASE = 300
     ERROR_BODY_LIMIT = 2_000
@@ -190,7 +189,7 @@ module DubbingPipeline
         Rails.logger.warn("[TranscribeJob] GPT returned no sentences array for merge: #{parsed.inspect[0, 200]}")
         return segments
       end
-      # Pull the original fragment index out of GPT's [idx:time] markers.
+      # Pull the original fragment index out of GPT's [idx:time] markers
       marker_pattern = /\[(\d+):([\d.]+)\]/
 
       start_indices = data.map do |item|
@@ -202,7 +201,7 @@ module DubbingPipeline
         text = item["text"].to_s.strip
         next if text.empty?
 
-        # A merged sentence spans from its start marker up to (but not including) the next one.
+        # A merged sentence spans from its start marker up to (but not including) the next one
         src_start_idx = start_indices[i] || 0
         next_src_start_idx = start_indices[i + 1] || segments.length
         last_src_idx = [ next_src_start_idx - 1, src_start_idx ].max
