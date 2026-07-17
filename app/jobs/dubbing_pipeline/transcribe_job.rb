@@ -2,20 +2,11 @@ module DubbingPipeline
   class TranscribeJob < ApplicationJob
     queue_as :low
 
-    # The transcription request is streamed (SSE) rather than waited on as one
-    # big response: non-streamed requests sit idle while OpenAI processes, and
-    # past ~5 minutes of processing the idle connection gets dropped and the
-    # response never arrives (observed: 60s of audio -> 22s, 7min -> 275s,
-    # 10min -> hangs until the read timeout). With streaming, segment events
-    # flow as they're transcribed, so the connection never looks idle.
-    #
-    # Wire format (captured from the live API 2026-07-16): CRLF-delimited SSE,
-    # `transcript.text.segment` events with speaker/start/end/text, then one
-    # `transcript.text.done` event and a `data: [DONE]` sentinel.
-    #
-    # READ_GAP_TIMEOUT only bounds silence between socket reads, and keep-alive
-    # bytes reset it -- so a wall-clock deadline scaled to the audio length
-    # backstops streams that trickle bytes without ever finishing.
+    # The transcription request is streamed (SSE): non-streamed requests sit
+    # idle while OpenAI processes and get dropped after ~5 minutes, so long
+    # audio never gets a response. READ_GAP_TIMEOUT bounds silence between
+    # reads; the wall-clock deadline (scaled to audio length) catches streams
+    # that trickle keep-alive bytes without finishing.
     READ_GAP_TIMEOUT = 120
     OVERALL_TIMEOUT_BASE = 300
     ERROR_BODY_LIMIT = 2_000
@@ -66,8 +57,7 @@ module DubbingPipeline
         }
       end
 
-      # An empty transcript would sail through translation and TTS into a
-      # silent dub; fail the task loudly instead.
+      # An empty transcript would become a silent dub; fail loudly instead
       raise "Transcription returned no speech segments" if raw_segments.empty?
 
       Rails.logger.info("[TranscribeJob] Got #{raw_segments.size} segments, #{speaker_id_map.size} speaker(s)")
@@ -80,8 +70,7 @@ module DubbingPipeline
 
     private
 
-    # Collects transcript.text.segment SSE events into the same segment hashes
-    # the non-streamed diarized_json response would return
+    # Collects transcript.text.segment events into diarized segment hashes
     def stream_transcription(ogg_path)
       audio_s = DubbingFfprobe.duration_seconds(ogg_path)
       overall_timeout = OVERALL_TIMEOUT_BASE + 2 * audio_s
@@ -109,8 +98,8 @@ module DubbingPipeline
           stream: "true"
         }
         req.options.on_data = proc do |chunk, _received_bytes, env|
-          # Some adapters don't expose the status mid-stream; treat unknown as OK
-          # and let the final response check catch failures.
+          # Some adapters don't expose the status mid-stream; the final
+          # response check catches those failures
           if env.status && env.status != 200
             error_body << chunk if error_body.bytesize < ERROR_BODY_LIMIT
             next

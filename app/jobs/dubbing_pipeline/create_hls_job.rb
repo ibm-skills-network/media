@@ -18,8 +18,8 @@ module DubbingPipeline
         audio_path = ws.fetch(task.audio, "audio.wav")
         dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.m4a")
 
-        # Flat layout in hls_dir so the COS prefix mirrors it 1:1, the player resolves
-        # segments, subtitles, and cos_player.json as siblings of master.m3u8
+        # Flat layout: the COS prefix mirrors hls_dir 1:1, so the player
+        # resolves every asset as a sibling of master.m3u8
         hls_dir = File.join(ws.dir, "hls")
         FileUtils.mkdir_p(hls_dir)
 
@@ -52,7 +52,6 @@ module DubbingPipeline
           error: "HLS video segmenting failed"
         )
 
-        # English audio track
         run_ffmpeg!(
           "-i", audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
           "-f", "hls", "-hls_time", "6",
@@ -187,8 +186,6 @@ module DubbingPipeline
         video: {
           title: "",
           chapters: chapter_list,
-          # All assets share the prefix with cos_player.json, so the player resolves them
-          # as siblings of master.m3u8
           videos: [ { url: "master.m3u8", quality: "original", downloadable: true, hd: true } ],
           subtitles: [
             { url: "transcript_#{src_code}.srt", label: src_name, language: src_code.upcase, format: "srt" },

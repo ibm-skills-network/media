@@ -1,7 +1,6 @@
 module DubbingFfprobe
   module_function
 
-  # Returns the audio/video duration in seconds as a float
   def duration_seconds(path)
     out, _err, status = Open3.capture3(
       "ffprobe", "-v", "error",

@@ -13,7 +13,6 @@ class DubbingHlsUploader
     new(local_hls_dir, task).upload_dir
   end
 
-  # Removes all HLS objects for a task
   def self.purge(task)
     new(nil, task).purge
   end
@@ -46,8 +45,7 @@ class DubbingHlsUploader
 
   private
 
-  # Random playback_key makes the prefix unguessable, so the public bucket policy
-  # doesn't let anyone enumerate other tasks' output by walking sequential ids
+  # The random playback_key keeps the public prefix unguessable
   def prefix
     "dubbing/#{@task.id}-#{@task.playback_key}/hls/"
   end

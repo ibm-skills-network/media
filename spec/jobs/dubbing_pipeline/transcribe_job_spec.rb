@@ -11,8 +11,7 @@ RSpec.describe DubbingPipeline::TranscribeJob, type: :job do
     ]
   end
 
-  # The live API delimits events with CRLF (captured 2026-07-16); the stub
-  # mirrors that rather than the friendlier \n\n
+  # The live API delimits events with CRLF; the stub mirrors that
   let(:terminal_payload) do
     "data: #{{ "type" => "transcript.text.done", "text" => "Hello world." }.to_json}\r\n\r\ndata: [DONE]\r\n\r\n"
   end
@@ -51,8 +50,7 @@ RSpec.describe DubbingPipeline::TranscribeJob, type: :job do
       if url.include?("audio/transcriptions")
         transcribe_request_bodies << req.body
 
-        # Deliver the SSE bytes in two chunks split mid-event so a partial
-        # event has to survive in the buffer
+        # Split mid-event so a partial event has to survive in the buffer
         middle = stream_payload.length / 2
         req.options.on_data.call(stream_payload[0...middle], middle, stream_env)
         req.options.on_data.call(stream_payload[middle..], stream_payload.length, stream_env)

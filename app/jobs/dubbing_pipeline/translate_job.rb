@@ -8,10 +8,8 @@ module DubbingPipeline
     BATCH_TIMEOUT_S = 600
     MAX_BATCH_RETRIES = 3
 
-    # Speaking pace per language, set ~10% below measured TTS output so
-    # budget-compliant lines still fit slower voices. Spanish is calibrated
-    # against real eleven_multilingual_v2 output (2.55 words/s, 2026-07);
-    # the rest are estimates relative to it. CJK is measured in characters.
+    # Speaking pace per language, ~10% below measured TTS output so compliant
+    # lines still fit slower voices. CJK is measured in characters.
     LENGTH_BUDGET_RATES = {
       "Spanish"    => [ 2.3, "words" ],
       "Italian"    => [ 2.3, "words" ],
@@ -168,8 +166,8 @@ module DubbingPipeline
       parsed
     end
 
-    # "max 8 words" (or characters for CJK), computed from the line's duration so
-    # the model never has to estimate pace or duration itself.
+    # Word (or CJK character) budget from the line's duration, so the model
+    # never has to estimate pace itself
     def length_budget(duration, target_lang)
       rate, unit = LENGTH_BUDGET_RATES.fetch(target_lang, DEFAULT_BUDGET_RATE)
       budget = [ (duration * rate).floor, MIN_WORD_BUDGET ].max

@@ -49,9 +49,15 @@ module DubbingPipeline
             index: i
           )
 
+          merged_segments[i]["retranslated"] = final_text != sanitized_text
           merged_segments[i]["translated_text"] = final_text
           tts_files << { index: i, path: clip_path }
         end
+
+        subtitle_segments = rebuild_subtitle_segments(
+          task.subtitle_segments, merged_segments, task.segments.length
+        )
+        merged_segments.each { |seg| seg.delete("source_range"); seg.delete("retranslated") }
 
         segments_file = ws.path("mix_segments.json")
         tts_files_path = ws.path("mix_tts_files.json")
@@ -71,7 +77,7 @@ module DubbingPipeline
         raise "Audio mixing failed: #{stderr}" unless status.success?
 
         # Persist only after mixing succeeds, otherwise a retry would see half-merged state
-        task.update!(segments: merged_segments)
+        task.update!(segments: merged_segments, subtitle_segments: subtitle_segments)
         ws.attach(task.dubbed_audio, "dubbed.m4a", content_type: "audio/mp4")
       end
 
@@ -87,9 +93,10 @@ module DubbingPipeline
       merged = []
       current = nil
 
-      segments.each do |seg|
+      segments.each_with_index do |seg, idx|
         if current.nil?
           current = seg.dup
+          current["source_range"] = [ idx, idx ]
           next
         end
 
@@ -103,14 +110,50 @@ module DubbingPipeline
           current["end"] = seg["end"]
           current["text"] = "#{current["text"]} #{seg["text"]}"
           current["translated_text"] = "#{current["translated_text"]} #{seg["translated_text"]}".strip
+          current["source_range"][1] = idx
         else
           merged << current
           current = seg.dup
+          current["source_range"] = [ idx, idx ]
         end
       end
 
       merged << current if current
       merged
+    end
+
+    # The subtitle snapshot predates retranslation, so it can show text the
+    # dub no longer speaks. Collapse each retranslated range into one cue with
+    # the spoken text; untouched cues keep their original timing.
+    def rebuild_subtitle_segments(subtitles, merged_segments, source_count)
+      return subtitles if subtitles.blank?
+
+      retranslated = merged_segments.select { |seg| seg["retranslated"] }
+      return subtitles if retranslated.empty?
+
+      # A snapshot of a different length means source_range indices don't line up
+      if subtitles.length != source_count
+        Rails.logger.warn(
+          "[GenerateDubbedAudioJob] subtitle snapshot has #{subtitles.length} cues, " \
+          "expected #{source_count}; leaving subtitles unchanged"
+        )
+        return subtitles
+      end
+
+      replacements = retranslated.index_by { |seg| seg["source_range"].first }
+
+      rebuilt = []
+      i = 0
+      while i < subtitles.length
+        if (seg = replacements[i])
+          rebuilt << seg.except("source_range", "retranslated")
+          i = seg["source_range"].last + 1
+        else
+          rebuilt << subtitles[i]
+          i += 1
+        end
+      end
+      rebuilt
     end
 
     def sanitize_for_tts(text)
@@ -141,10 +184,9 @@ module DubbingPipeline
         write_tts_clip(current_text, voice_id, clip_path, voice_settings)
         clip_ms = (DubbingFfprobe.duration_seconds(clip_path) * 1000).to_i
 
-        # Fits with at most a barely-audible speedup (Python applies it): take it.
         return [ clip_path, current_text ] if clip_ms <= slot_ms * COMFORT_SPEED
 
-        # Remember the shortest attempt; a retranslation isn't guaranteed to come out shorter.
+        # A retranslation isn't guaranteed to come out shorter
         if best.nil? || clip_ms < best[:clip_ms]
           FileUtils.cp(clip_path, best_path)
           best = { clip_ms: clip_ms, text: current_text }
@@ -154,8 +196,7 @@ module DubbingPipeline
         current_text = retranslate_shorter(current_text, original_text, clip_ms / 1000.0, slot_s, target_lang)
       end
 
-      # Nothing fit comfortably: keep the shortest attempt and let Python
-      # speed it up (capped at MAX_SPEED) or trim as a last resort.
+      # Nothing fit: keep the shortest attempt, Python speeds it up or trims
       Rails.logger.warn(
         "[GenerateDubbedAudioJob] segment #{index} still #{(best[:clip_ms] / 1000.0).round(1)}s " \
         "for a #{slot_s.round(1)}s slot after #{MAX_RETRANSLATE_ATTEMPTS} retranslations"
@@ -184,8 +225,7 @@ module DubbingPipeline
     end
 
     def retranslate_shorter(text, original_text, clip_s, slot_s, target_lang)
-      # The clip/slot ratio is measured from real audio, so it converts directly
-      # into a word budget the model can aim at without estimating pace itself.
+      # The measured clip/slot ratio converts directly into a word budget
       current_words = text.split.length
       target_words = [ (current_words * slot_s / clip_s).floor, 3 ].max
       conn = Faraday.new do |f|

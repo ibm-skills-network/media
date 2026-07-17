@@ -97,6 +97,58 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
       merged = job.send(:merge_segments_for_tts, segments)
       expect(merged.length).to eq(2)
     end
+
+    it "records which source segments each merged segment covers" do
+      segments = [
+        { "start" => 0.0, "end" => 1.0, "text" => "Uno", "translated_text" => "uno", "speaker" => "S0" },
+        { "start" => 1.2, "end" => 2.0, "text" => "Dos", "translated_text" => "dos", "speaker" => "S0" },
+        { "start" => 5.0, "end" => 6.0, "text" => "Tres", "translated_text" => "tres", "speaker" => "S0" }
+      ]
+      merged = job.send(:merge_segments_for_tts, segments)
+      expect(merged.map { |s| s["source_range"] }).to eq([ [ 0, 1 ], [ 2, 2 ] ])
+    end
+  end
+
+  describe "#rebuild_subtitle_segments" do
+    let(:job) { described_class.new }
+    let(:subtitles) do
+      [
+        { "start" => 0.0, "end" => 1.0, "text" => "Uno", "translated_text" => "uno", "speaker" => "S0" },
+        { "start" => 1.2, "end" => 2.0, "text" => "Dos", "translated_text" => "dos", "speaker" => "S0" },
+        { "start" => 5.0, "end" => 6.0, "text" => "Tres.", "translated_text" => "tres.", "speaker" => "S0" }
+      ]
+    end
+
+    it "collapses the cues behind a retranslated segment into one cue with the spoken text" do
+      merged = [
+        { "start" => 0.0, "end" => 2.0, "text" => "Uno Dos", "translated_text" => "corto",
+          "speaker" => "S0", "source_range" => [ 0, 1 ], "retranslated" => true },
+        { "start" => 5.0, "end" => 6.0, "text" => "Tres.", "translated_text" => "tres.",
+          "speaker" => "S0", "source_range" => [ 2, 2 ], "retranslated" => false }
+      ]
+
+      rebuilt = job.send(:rebuild_subtitle_segments, subtitles, merged, 3)
+
+      expect(rebuilt.length).to eq(2)
+      expect(rebuilt.first).to eq(
+        { "start" => 0.0, "end" => 2.0, "text" => "Uno Dos", "translated_text" => "corto", "speaker" => "S0" }
+      )
+      expect(rebuilt.last).to eq(subtitles.last)
+    end
+
+    it "returns the snapshot untouched when nothing was retranslated" do
+      merged = [ { "source_range" => [ 0, 2 ], "retranslated" => false } ]
+      expect(job.send(:rebuild_subtitle_segments, subtitles, merged, 3)).to equal(subtitles)
+    end
+
+    it "leaves a snapshot with unexpected length alone rather than misaligning cues" do
+      merged = [ { "source_range" => [ 0, 1 ], "retranslated" => true } ]
+      expect(job.send(:rebuild_subtitle_segments, subtitles, merged, 5)).to equal(subtitles)
+    end
+
+    it "passes through a blank snapshot" do
+      expect(job.send(:rebuild_subtitle_segments, [], [], 0)).to eq([])
+    end
   end
 
   describe "#sanitize_for_tts" do
@@ -135,8 +187,7 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
       let!(:workspaces) { stub_dubbing_workspace }
 
       before do
-        # ffprobe and the mix script both go through capture3; the ffprobe call
-        # returns the duration string, the mix call returns success.
+        # Covers both ffprobe (duration string) and the mix script (success)
         allow(Open3).to receive(:capture3).and_return([ "60.0", "", double(success?: true) ])
         allow(File).to receive(:write)
         # Skip ElevenLabs/TTS round-trips by zeroing-out the segments-to-voice loop.
@@ -153,6 +204,53 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
       it "enqueues CreateDubbedVideoJob" do
         expect(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later).with(task.id)
         described_class.new.perform(task.id)
+      end
+    end
+
+    context "when a segment is retranslated during TTS" do
+      let(:source_segments) do
+        [
+          { "start" => 0.0, "end" => 1.0, "text" => "Hello", "translated_text" => "Hola amigo",
+            "speaker" => "SPEAKER_0", "gender" => "man", "prosody" => "neutral" },
+          { "start" => 1.2, "end" => 2.0, "text" => "world", "translated_text" => "mundo grande",
+            "speaker" => "SPEAKER_0", "gender" => "man", "prosody" => "neutral" },
+          { "start" => 5.0, "end" => 6.0, "text" => "Bye.", "translated_text" => "Adios.",
+            "speaker" => "SPEAKER_0", "gender" => "man", "prosody" => "neutral" }
+        ]
+      end
+
+      let(:task) do
+        create(:dubbing_task, :with_audio, :with_vocals, :with_background,
+          segments: source_segments, subtitle_segments: source_segments)
+      end
+
+      before do
+        stub_dubbing_workspace
+        allow(Open3).to receive(:capture3).and_return([ "60.0", "", double(success?: true) ])
+        allow(File).to receive(:write)
+        allow_any_instance_of(DubbingTask).to receive(:voice_for).and_return("v1")
+        # First merged segment (sources 0-1) comes back shortened, second unchanged
+        allow_any_instance_of(described_class).to receive(:generate_tts_with_retranslation)
+          .and_return([ "/tts/0.mp3", "Hola mundo" ], [ "/tts/1.mp3", "Adios." ])
+        allow(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later)
+      end
+
+      it "collapses the retranslated cues in subtitle_segments to the spoken text" do
+        described_class.new.perform(task.id)
+
+        subs = task.reload.subtitle_segments
+        expect(subs.length).to eq(2)
+        expect(subs.first["translated_text"]).to eq("Hola mundo")
+        expect(subs.first.values_at("start", "end")).to eq([ 0.0, 2.0 ])
+        expect(subs.first["text"]).to eq("Hello world")
+        expect(subs.last["translated_text"]).to eq("Adios.")
+      end
+
+      it "does not leak merge bookkeeping keys into persisted segments" do
+        described_class.new.perform(task.id)
+
+        all_keys = task.reload.segments.flat_map(&:keys) + task.subtitle_segments.flat_map(&:keys)
+        expect(all_keys).not_to include("source_range", "retranslated")
       end
     end
 

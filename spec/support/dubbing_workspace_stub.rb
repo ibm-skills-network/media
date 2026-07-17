@@ -1,5 +1,5 @@
-# Stubs DubbingWorkspace so pipeline specs don't need real mktmpdir, disk I/O,
-# or AS uploads, fake yields paths under /tmp/ws-stub-<prefix> and records every attach
+# Stubs DubbingWorkspace so pipeline specs skip disk I/O and uploads; the fake
+# yields paths under /tmp/ws-stub-<prefix> and records every attach
 module DubbingWorkspaceStub
   class FakeWorkspace
     attr_reader :dir, :attached
