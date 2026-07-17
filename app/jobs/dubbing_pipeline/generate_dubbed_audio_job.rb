@@ -11,7 +11,7 @@ module DubbingPipeline
     SLOT_PAD_S = 0.5
 
     sidekiq_retries_exhausted do |msg, exception|
-      task = DubbingTask.find_by(id: msg["args"].first)
+      task = DubbingTask.find_by(id: msg.dig("args", 0, "arguments", 0))
       next unless task
       task.update!(status: "failed", error_message: exception.message)
       task.purge_pipeline_artifacts!(include_hls: true)

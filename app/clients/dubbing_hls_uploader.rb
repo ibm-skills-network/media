@@ -35,10 +35,13 @@ class DubbingHlsUploader
   end
 
   def purge
-    client.list_objects_v2(bucket: bucket_name, prefix: prefix).contents.each_slice(1000) do |batch|
+    # list_objects_v2 caps each page at 1000 keys; long videos exceed that,
+    # so walk every page or stale segments survive the purge
+    client.list_objects_v2(bucket: bucket_name, prefix: prefix).each do |page|
+      next if page.contents.empty?
       client.delete_objects(
         bucket: bucket_name,
-        delete: { objects: batch.map { |o| { key: o.key } } }
+        delete: { objects: page.contents.map { |o| { key: o.key } } }
       )
     end
   end

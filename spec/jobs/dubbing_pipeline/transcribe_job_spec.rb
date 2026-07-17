@@ -150,4 +150,22 @@ RSpec.describe DubbingPipeline::TranscribeJob, type: :job do
       end
     end
   end
+
+  describe "sidekiq_retries_exhausted" do
+    # Sidekiq's ActiveJob adapter enqueues args as [job.serialize], so the death
+    # handler receives the serialized job hash, not the raw task id
+    it "resolves the task id from the wrapped ActiveJob payload" do
+      allow(DubbingHlsUploader).to receive(:purge)
+      msg = {
+        "args" => [ { "job_class" => described_class.name, "arguments" => [ task.id ] } ]
+      }
+
+      described_class.sidekiq_retries_exhausted_block.call(msg, StandardError.new("boom"))
+
+      task.reload
+      expect(task.status).to eq("failed")
+      expect(task.error_message).to eq("boom")
+      expect(DubbingHlsUploader).to have_received(:purge).with(task)
+    end
+  end
 end
