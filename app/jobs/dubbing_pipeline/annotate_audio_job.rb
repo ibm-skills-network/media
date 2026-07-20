@@ -21,8 +21,7 @@ module DubbingPipeline
         stdout, stderr, status = Open3.capture3(
           "python3", Rails.root.join("script/dubbing/annotate_audio.py").to_s,
           vocals_path,
-          "--segments-file", segments_in_path,
-          "--output-dir", ws.dir
+          "--segments-file", segments_in_path
         )
         raise "Audio annotation failed: #{stderr}" unless status.success?
 

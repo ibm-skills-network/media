@@ -5,7 +5,6 @@ module DubbingPipeline
     MAX_GAP_S = 1.0
     MAX_MERGED_DURATION_S = 15.0
     MAX_RETRANSLATE_ATTEMPTS = 2
-    MAX_SPEED = 1.35
     # Above this speedup, retranslating is worth trying before accepting the clip
     COMFORT_SPEED = 1.15
     SLOT_PAD_S = 0.5

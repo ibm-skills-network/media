@@ -88,7 +88,7 @@ module DubbingPipeline
         translations = {}
         failure_count = 0
         futures.each_with_index do |future, idx|
-          result = future.value!(BATCH_TIMEOUT_S + 100)
+          result = future.value!(MAX_BATCH_RETRIES * BATCH_TIMEOUT_S + 100)
           translations.merge!(result) if result.is_a?(Hash)
         rescue => e
           Rails.logger.error("[TranslateJob] batch #{idx} failed: #{e.class}: #{e.message}")

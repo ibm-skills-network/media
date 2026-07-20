@@ -71,7 +71,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("audio_path")
     parser.add_argument("--segments-file", required=True)
-    parser.add_argument("--output-dir")
     args = parser.parse_args()
 
     with open(args.segments_file) as f:
