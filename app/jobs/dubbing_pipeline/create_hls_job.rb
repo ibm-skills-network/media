@@ -18,7 +18,7 @@ module DubbingPipeline
         audio_path = ws.fetch(task.audio, "audio.wav")
         dubbed_audio_path = ws.fetch(task.dubbed_audio, "dubbed.m4a")
 
-        # Flat layout: the COS prefix mirrors hls_dir 1:1, so the player
+        # flat layout, the COS prefix mirrors hls_dir 1:1 so the player
         # resolves every asset as a sibling of master.m3u8
         hls_dir = File.join(ws.dir, "hls")
         FileUtils.mkdir_p(hls_dir)
@@ -40,7 +40,7 @@ module DubbingPipeline
         write_subtitles(subtitle_segments, srt_src, format: :srt, use_translated: false)
         write_subtitles(subtitle_segments, srt_dub, format: :srt, use_translated: true)
 
-        # Video-only stream, fMP4 segments are required for swappable audio tracks
+        # video-only stream, fMP4 segments are required for swappable audio tracks
         run_ffmpeg!(
           "-i", dubbed_video_path, "-an", "-c:v", "copy",
           "-f", "hls", "-hls_time", "6",
@@ -63,7 +63,7 @@ module DubbingPipeline
           error: "HLS english audio failed"
         )
 
-        # Dubbed audio, same encoding as English so the player switches cleanly
+        # dubbed audio, same encoding as English so the player switches cleanly
         run_ffmpeg!(
           "-i", dubbed_audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
           "-f", "hls", "-hls_time", "6",
@@ -75,7 +75,7 @@ module DubbingPipeline
           error: "HLS dubbed audio failed"
         )
 
-        # One subtitle playlist per language, each wrapping its .webvtt as a single segment
+        # one subtitle playlist per language, each wrapping its webvtt as a single segment
         [ src_code, lang_code ].uniq.each do |lang|
           File.write(File.join(hls_dir, "playlist_s-#{lang}.m3u8"), <<~M3U8)
             #EXTM3U
@@ -88,7 +88,7 @@ module DubbingPipeline
           M3U8
         end
 
-        # VTT chapters for the HLS player, JSON chapters for the COS Player UI
+        # vtt chapters for the HLS player, json chapters for the COS player UI
         write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{src_code}.vtt"), duration, key: "title")
         write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{lang_code}.vtt"), duration, key: "title_dubbed")
         File.write(File.join(hls_dir, "chapters.json"), JSON.pretty_generate(task.chapters))

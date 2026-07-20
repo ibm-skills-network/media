@@ -40,11 +40,8 @@ def _tail_file(path, n_bytes):
 
 
 def run_subprocess_logged(cmd, log_path, timeout_s, error_prefix):
-    """
-    Run a subprocess with stderr (and stdout) streamed to a file on disk
-    rather than buffered in memory. On failure, read the tail of the log
-    so the exception carries useful context without holding the whole log.
-    """
+    """Runs a subprocess with stderr/stdout streamed to a file instead of buffered in memory
+    On failure, reads the tail of the log so the exception carries context without holding the whole log"""
     with open(log_path, "wb") as logf:
         try:
             result = subprocess.run(
@@ -78,8 +75,6 @@ def adjust_speed(audio, speed, output_dir, segment_index):
     if abs(speed - 1.0) < 0.01:
         return audio
 
-    # WAV instead of mp3, the worker ffmpeg has no libmp3lame, and WAV is lossless
-    # so multiple speed passes don't compound encoder loss
     temp_in = os.path.join(output_dir, f"_speed_in_{segment_index}.wav")
     temp_out = os.path.join(output_dir, f"_speed_out_{segment_index}.wav")
     log_path = os.path.join(output_dir, f"_speed_log_{segment_index}.txt")
@@ -103,7 +98,7 @@ def adjust_speed(audio, speed, output_dir, segment_index):
 
 
 def place_clip(tts_audio, slot_ms, seg_duration_ms, output_dir, segment_index):
-    """Fit a TTS clip into the available slot. Speed up if too long, slow down (gently) if much shorter."""
+    """Fits a TTS clip into the available slot, speeds up if too long, slows down gently if much shorter"""
     if len(tts_audio) > slot_ms:
         speed = len(tts_audio) / slot_ms
         if speed <= MAX_SPEED:
@@ -146,10 +141,8 @@ def probe_audio_format(path):
 
 
 def detect_silent_regions(audio_path):
-    """
-    Load the vocals at SAMPLE_RATE mono and find regions below the
-    absolute dBFS threshold. Returns a list of (start_s, end_s) tuples.
-    """
+    """Loads the vocals at SAMPLE_RATE mono and finds regions below the dBFS threshold
+    Returns a list of (start_s, end_s) tuples"""
     y, _ = librosa.load(audio_path, sr=SAMPLE_RATE, mono=True)
     file_duration_s = len(y) / SAMPLE_RATE
     frame_length = int(0.5 * SAMPLE_RATE)
@@ -224,11 +217,8 @@ def clip_to_int16_array(audio_segment, target_sr, target_channels):
 
 def assemble_tts_track(segments, slots, tts_map, indices_with_tts, total_ms,
                        sample_rate, channels, output_dir, out_path):
-    """
-    Stream-write the TTS track to disk. Each placed clip is loaded and prepared
-    individually, then its samples are appended to the output WAV. Memory stays
-    bounded by the largest single clip (~15s by upstream MAX_MERGED_DURATION_S).
-    """
+    """Stream-writes the TTS track to disk, one clip at a time
+    Memory stays bounded by the largest single clip (~15s from upstream MAX_MERGED_DURATION_S)"""
     total_frames = int(total_ms * sample_rate / 1000)
     silence_chunk = np.zeros((4096, channels), dtype=np.int16)
 
@@ -257,7 +247,7 @@ def assemble_tts_track(segments, slots, tts_map, indices_with_tts, total_ms,
 
                 start_frame = int(slot_start_ms * sample_rate / 1000)
 
-                # If a previous clip's playback already extended past this slot's start,
+                # if a previous clip's playback already extended past this slot's start
                 # skip this clip rather than mix on top of it
                 if start_frame < cursor_frames:
                     print(
@@ -274,7 +264,7 @@ def assemble_tts_track(segments, slots, tts_map, indices_with_tts, total_ms,
                 samples = clip_to_int16_array(tts_audio, sample_rate, channels)
                 clip_frames = samples.shape[0]
 
-                # Cap clip length at: end of file, AND start of next clip's slot
+                # cap clip length at end of file and start of next clip's slot
                 hard_cap_frames = total_frames - start_frame
                 if pos + 1 < len(indices_with_tts):
                     next_slot_start_ms = slots[indices_with_tts[pos + 1]][0]
@@ -331,10 +321,7 @@ def fmt_range(start_ms, end_ms):
 
 
 def build_filtergraph(duck_ranges_ms, patch_ranges_ms):
-    """
-    Inputs: [0:a]=background, [1:a]=tts_track, [2:a]=original
-    Output label: [out]
-    """
+    """Builds the ffmpeg filtergraph, inputs are [0:a]=background [1:a]=tts_track [2:a]=original, output is [out]"""
     lines = []
 
     if duck_ranges_ms:
@@ -434,8 +421,6 @@ def main():
     with open(graph_path, "w") as f:
         f.write(graph)
 
-    # AAC in m4a, ffmpeg's native AAC encoder is in every build, and downstream
-    # HLS re-encodes to AAC anyway so we skip a transcode by emitting it now
     output_path = os.path.join(args.output_dir, "dubbed.m4a")
     mix_log_path = os.path.join(args.output_dir, "ffmpeg_mix.log")
     run_subprocess_logged(

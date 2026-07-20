@@ -9,7 +9,7 @@ module DubbingPipeline
     MAX_BATCH_RETRIES = 3
 
     # Speaking pace per language, ~10% below measured TTS output so compliant
-    # lines still fit slower voices. CJK is measured in characters
+    # lines still fit slower voices, CJK is measured in characters
     LENGTH_BUDGET_RATES = {
       "Spanish"    => [ 2.3, "words" ],
       "Italian"    => [ 2.3, "words" ],
@@ -63,6 +63,8 @@ module DubbingPipeline
 
     private
 
+    # each batch carries a few preceding segments as read-only context, not for
+    # translation, just so GPT keeps tone and pronouns consistent across batches
     def build_batches(segments)
       batches = []
       i = 0

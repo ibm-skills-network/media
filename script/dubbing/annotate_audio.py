@@ -10,10 +10,8 @@ from inaSpeechSegmenter import Segmenter
 
 @contextlib.contextmanager
 def redirect_stdout_to_stderr():
-    """
-    inaSpeechSegmenter prints init messages to stdout; Ruby parses the stdout as JSON
-    so route those to stderr instead
-    """
+    """inaSpeechSegmenter prints init messages to stdout, but Ruby parses stdout as JSON
+    so route those to stderr instead"""
     original_stdout_fd = os.dup(1)
     try:
         os.dup2(2, 1)

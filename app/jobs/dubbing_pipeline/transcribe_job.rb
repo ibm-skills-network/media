@@ -2,10 +2,6 @@ module DubbingPipeline
   class TranscribeJob < ApplicationJob
     queue_as :low
 
-    # Streamed (SSE) because non-streamed requests sit idle while OpenAI processes
-    # and get dropped after ~5 minutes, so long audio never gets a response;
-    # READ_GAP_TIMEOUT bounds silence between reads and the wall-clock deadline
-    # (scaled to audio length) catches streams that trickle keep-alives forever
     READ_GAP_TIMEOUT = 120
     OVERALL_TIMEOUT_BASE = 300
     ERROR_BODY_LIMIT = 2_000
@@ -25,7 +21,6 @@ module DubbingPipeline
         audio_path = ws.fetch(task.audio, "audio.wav")
         ogg_path = ws.path("transcribe.ogg")
 
-        # Opus instead of mp3, the worker ffmpeg is built without libmp3lame
         _stdout, stderr, status = Open3.capture3(
           "ffmpeg", "-y",
           "-i", audio_path,
@@ -56,7 +51,7 @@ module DubbingPipeline
         }
       end
 
-      # An empty transcript would become a silent dub; fail loudly instead
+      # an empty transcript would become a silent dub, fail loudly instead
       raise "Transcription returned no speech segments" if raw_segments.empty?
 
       Rails.logger.info("[TranscribeJob] Got #{raw_segments.size} segments, #{speaker_id_map.size} speaker(s)")
@@ -69,7 +64,8 @@ module DubbingPipeline
 
     private
 
-    # Collects transcript.text.segment events into diarized segment hashes
+    # Reads the SSE stream and collects diarized segments as they arrive
+    # deadline scales with audio length since longer files take longer to transcribe
     def stream_transcription(ogg_path)
       audio_s = DubbingFfprobe.duration_seconds(ogg_path)
       overall_timeout = OVERALL_TIMEOUT_BASE + 2 * audio_s
@@ -97,8 +93,7 @@ module DubbingPipeline
           stream: "true"
         }
         req.options.on_data = proc do |chunk, _received_bytes, env|
-          # Some adapters don't expose the status mid-stream; the final
-          # response check catches those failures
+          # some adapters don't expose status mid-stream, final response check catches it
           if env.status && env.status != 200
             error_body << chunk if error_body.bytesize < ERROR_BODY_LIMIT
             next
@@ -140,6 +135,8 @@ module DubbingPipeline
       raise "Transcription stream sent an unparseable event: #{payload.byteslice(0, 200)}"
     end
 
+    # Sends fragments to GPT to reassemble into full sentences, then maps each
+    # returned sentence back to a start/end/speaker using its marker index
     def merge_into_sentences(segments)
       return segments if segments.empty?
 
@@ -189,7 +186,7 @@ module DubbingPipeline
         Rails.logger.warn("[TranscribeJob] GPT returned no sentences array for merge: #{parsed.inspect[0, 200]}")
         return segments
       end
-      # Pull the original fragment index out of GPT's [idx:time] markers
+      # pull the original fragment index out of GPT's [idx:time] markers
       marker_pattern = /\[(\d+):([\d.]+)\]/
 
       start_indices = data.map do |item|
@@ -201,7 +198,7 @@ module DubbingPipeline
         text = item["text"].to_s.strip
         next if text.empty?
 
-        # A merged sentence spans from its start marker up to (but not including) the next one
+        # a merged sentence spans from its start marker up to but not including the next one
         src_start_idx = start_indices[i] || 0
         next_src_start_idx = start_indices[i + 1] || segments.length
         last_src_idx = [ next_src_start_idx - 1, src_start_idx ].max

@@ -5,8 +5,6 @@ FactoryBot.define do
     dialect { "latin-american" }
     status { "pending" }
 
-    # Traits for specs that need attachments, tiny in-memory IOs that AS's DiskService
-    # writes to tmp/storage during the run and cleans up after
     trait :with_audio          do after(:build) { |t| t.audio.attach(io: StringIO.new("pcm"), filename: "audio.wav", content_type: "audio/wav") } end
     trait :with_source_video   do after(:build) { |t| t.source_video.attach(io: StringIO.new("mp4"), filename: "source.mp4", content_type: "video/mp4") } end
     trait :with_vocals         do after(:build) { |t| t.vocals.attach(io: StringIO.new("voc"), filename: "vocals.wav", content_type: "audio/wav") } end

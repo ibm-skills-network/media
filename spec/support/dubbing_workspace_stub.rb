@@ -1,5 +1,4 @@
-# Stubs DubbingWorkspace so pipeline specs skip disk I/O and uploads; the fake
-# yields paths under /tmp/ws-stub-<prefix> and records every attach
+# Stubs DubbingWorkspace so pipeline specs skip disk I/O and uploads
 module DubbingWorkspaceStub
   class FakeWorkspace
     attr_reader :dir, :attached
@@ -23,8 +22,6 @@ module DubbingWorkspaceStub
     end
   end
 
-  # Yields the FakeWorkspace once per DubbingWorkspace.with call in the SUT so tests
-  # can assert on the captured attach/fetch calls afterward
   def stub_dubbing_workspace
     captured = []
     allow(DubbingWorkspace).to receive(:with) do |prefix, &block|
