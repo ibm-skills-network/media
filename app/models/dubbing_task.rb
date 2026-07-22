@@ -66,7 +66,8 @@ class DubbingTask < ApplicationRecord
     "Malay"      => "ms",
     "Tamil"      => "ta",
     "Bulgarian"  => "bg",
-    "Croatian"   => "hr"
+    "Croatian"   => "hr",
+    "English"    => "en"
   }.freeze
 
   SUPPORTED_LANGUAGES = LANGUAGE_CODES.keys.freeze

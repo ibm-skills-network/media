@@ -1,6 +1,6 @@
 module DubbingPipeline
   class AnnotateAudioJob < ApplicationJob
-    queue_as :gpu
+    queue_as :low
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg.dig("args", 0, "arguments", 0))
