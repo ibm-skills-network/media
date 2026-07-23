@@ -32,6 +32,7 @@ gem "config"
 
 # HTTP client library
 gem "faraday"
+gem "faraday-multipart"
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 # gem "image_processing", "~> 1.2"
 
@@ -51,6 +52,8 @@ group :development, :test do
   gem "factory_bot_rails", "~> 6.2"
   # Faker for generating fake data for tests
   gem "faker", "~> 2.21"
+  # Load env vars from .env locally; production reads from the real environment
+  gem "dotenv-rails"
 end
 
 group :development, :rubocop do
