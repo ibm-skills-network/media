@@ -14,9 +14,9 @@ module DubbingPipeline
       task = DubbingTask.find(task_id)
       return if task.failed? || task.success?
 
-      # Keep HLS, that's the deliverable the player streams from
-      task.purge_pipeline_artifacts!(include_hls: false)
       task.update!(status: "success")
+      # Keep HLS because that's the deliverable the player streams from
+      task.purge_pipeline_artifacts!(include_hls: false)
     end
   end
 end

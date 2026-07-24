@@ -50,15 +50,50 @@ module DubbingPipeline
 
       raise "GPT chapters failed: HTTP #{response.status}" unless response.success?
 
-      parsed = JSON.parse(JSON.parse(response.body)["choices"][0]["message"]["content"])
-      chapters = (parsed["chapters"] || []).map do |ch|
-        ch.merge(
-          "title" => ch["title"].to_s[0, 60],
-          "title_dubbed" => ch["title_dubbed"].to_s[0, 60]
-        )
-      end
+      chapters = parse_chapters(response.body)
       task.update!(chapters: chapters)
       DubbingPipeline::TranslateJob.perform_later(task_id)
+    end
+
+    private
+
+    # Raise on an unusable response (retryable via Sidekiq); drop individual
+    # malformed chapters and keep the good ones.
+    def parse_chapters(body)
+      content = JSON.parse(body).dig("choices", 0, "message", "content")
+      raise "GPT chapters: no content: #{body.byteslice(0, 500)}" if content.nil?
+
+      parsed =
+        begin
+          JSON.parse(content)
+        rescue JSON::ParserError => e
+          raise "GPT chapters: content not JSON (#{e.message}): #{content.byteslice(0, 500)}"
+        end
+
+      unless parsed.is_a?(Hash) && parsed["chapters"].is_a?(Array)
+        raise "GPT chapters: expected { \"chapters\": [...] }, got #{parsed.class}: #{content.byteslice(0, 500)}"
+      end
+
+      valid, dropped = parsed["chapters"].partition { |ch| valid_chapter?(ch) }
+      Rails.logger.warn("IdentifyChaptersJob dropped #{dropped.size} malformed chapters: #{dropped.inspect}") if dropped.any?
+
+      valid
+        .map do |ch|
+          {
+            "start" => Float(ch["start"]).floor,
+            "title" => ch["title"].to_s.strip[0, 60],
+            "title_dubbed" => ch["title_dubbed"].to_s.strip[0, 60]
+          }
+        end
+        .sort_by { |ch| ch["start"] }
+    end
+
+    # Usable = non-negative numeric start and a non-blank title.
+    def valid_chapter?(ch)
+      return false unless ch.is_a?(Hash)
+
+      start = Float(ch["start"], exception: false)
+      start && start >= 0 && ch["title"].to_s.strip.present?
     end
   end
 end

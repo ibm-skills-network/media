@@ -62,7 +62,7 @@ RSpec.describe Api::V1::Async::Videos::DubbingTasksController, type: :controller
     end
 
     context "when validation fails" do
-      it "returns 422 with errors and does not enqueue a job" do
+      it "returns 422 with an error and does not enqueue a job" do
         bad_params = valid_params.deep_merge(dubbing_task: { language: "Klingon" })
 
         expect {
@@ -70,7 +70,7 @@ RSpec.describe Api::V1::Async::Videos::DubbingTasksController, type: :controller
         }.not_to have_enqueued_job(DubbingPipeline::ExtractAudioJob)
 
         expect(response).to have_http_status(:unprocessable_entity)
-        expect(JSON.parse(response.body)).to have_key("errors")
+        expect(JSON.parse(response.body)).to have_key("error")
       end
     end
   end

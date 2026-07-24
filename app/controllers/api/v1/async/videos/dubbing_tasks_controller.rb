@@ -14,13 +14,9 @@ module Api
           end
 
           def create
-            task = DubbingTask.new(dubbing_params)
-            if task.save
-              DubbingPipeline::ExtractAudioJob.perform_later(task.id)
-              render json: { id: task.id, status: task.status }, status: :created
-            else
-              render json: { errors: task.errors }, status: :unprocessable_entity
-            end
+            task = DubbingTask.create!(dubbing_params)
+            DubbingPipeline::ExtractAudioJob.perform_later(task.id)
+            render json: { id: task.id, status: task.status }, status: :created
           end
 
           private

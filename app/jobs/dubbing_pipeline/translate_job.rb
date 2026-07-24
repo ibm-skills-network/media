@@ -7,6 +7,7 @@ module DubbingPipeline
     MAX_CONCURRENCY = 5
     BATCH_TIMEOUT_S = 600
     MAX_BATCH_RETRIES = 3
+    MAX_MISSING_RETRIES = 2
 
     # Speaking pace per language, ~10% below measured TTS output so compliant
     # lines still fit slower voices, CJK is measured in characters
@@ -38,18 +39,27 @@ module DubbingPipeline
       batches = build_batches(segments)
       translations = translate_batches_in_parallel(batches, segments, task.language)
 
+      # Re-request lines that dropped out of an otherwise successful batch before
+      # falling back to the original audio
+      retranslate_missing_segments(translations, segments, task.language)
+
       missing = []
       segments.each_with_index do |seg, i|
         translated = translations[i]
         if translated.to_s.strip.empty?
           missing << i
+          # Keep the source text for subtitles, but flag is so 
+          # GenerateDubbedAudioJob splices the original audio in rather than voicing
+          # untranslated English.
           seg["translated_text"] = seg["text"]
+          seg["use_original_audio"] = true
         else
           seg["translated_text"] = translated
+          seg.delete("use_original_audio")
         end
       end
       if missing.any?
-        Rails.logger.warn("[TranslateJob] #{missing.size} segments fell back to source text: #{missing.first(10).inspect}")
+        Rails.logger.warn("[TranslateJob] #{missing.size} segments will use original audio: #{missing.first(10).inspect}")
         if missing.size > segments.size / 10
           raise "Translation incomplete: #{missing.size}/#{segments.size} segments missing translations"
         end
@@ -62,6 +72,42 @@ module DubbingPipeline
     end
 
     private
+
+    # Re-request segments still missing a translation, mutating `translations` in
+    # place. Missing lines are grouped into contiguous runs so each retry reads
+    # like a normal batch with preceding context.
+    def retranslate_missing_segments(translations, segments, target_lang)
+      MAX_MISSING_RETRIES.times do |attempt|
+        missing = (0...segments.length).reject { |i| translations[i].to_s.strip.present? }
+        return if missing.empty?
+
+        Rails.logger.warn(
+          "[TranslateJob] retry #{attempt + 1}/#{MAX_MISSING_RETRIES} for " \
+          "#{missing.size} missing segments: #{missing.first(10).inspect}"
+        )
+
+        contiguous_runs(missing).each do |run|
+          batch = {
+            context_range: ([ run.first - CONTEXT_OVERLAP, 0 ].max...run.first),
+            translate_range: (run.first..run.last)
+          }
+          recovered =
+            begin
+              translate_batch_with_retry(batch, segments, target_lang)
+            rescue => e
+              Rails.logger.error("[TranslateJob] missing-segment retry failed: #{e.class}: #{e.message}")
+              {}
+            end
+          # only fill real gaps, never overwrite a line we already have
+          recovered.each { |i, text| translations[i] ||= text if text.to_s.strip.present? }
+        end
+      end
+    end
+
+    # [1, 2, 3, 7, 8, 11] => [1..3, 7..8, 11..11]
+    def contiguous_runs(indices)
+      indices.slice_when { |prev, cur| cur != prev + 1 }.map { |run| run.first..run.last }
+    end
 
     # each batch carries a few preceding segments as read-only context, not for
     # translation, just so GPT keeps tone and pronouns consistent across batches

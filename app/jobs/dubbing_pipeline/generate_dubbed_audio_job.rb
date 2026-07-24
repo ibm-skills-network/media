@@ -5,9 +5,10 @@ module DubbingPipeline
     MAX_GAP_S = 1.0
     MAX_MERGED_DURATION_S = 15.0
     MAX_RETRANSLATE_ATTEMPTS = 2
-    # above this speedup, retranslating is worth trying before accepting the clip
     COMFORT_SPEED = 1.15
     SLOT_PAD_S = 0.5
+    SINO_TIBETAN_LANGUAGES = %w[Japanese Chinese].freeze
+
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg.dig("args", 0, "arguments", 0))
@@ -29,8 +30,15 @@ module DubbingPipeline
         total_s = DubbingFfprobe.duration_seconds(background_path)
 
         tts_files = []
+        # ranges where translation failed; mix in the original audio here
+        fallback_ranges = []
         merged_segments.each_with_index do |seg, i|
           next if seg["translated_text"].to_s.strip.empty?
+
+          if seg["use_original_audio"]
+            fallback_ranges << [ seg["start"], seg["end"] ]
+            next
+          end
 
           voice_id = task.voice_for(seg["speaker"])
           sanitized_text = sanitize_for_tts(seg["translated_text"])
@@ -56,17 +64,24 @@ module DubbingPipeline
         subtitle_segments = rebuild_subtitle_segments(
           task.subtitle_segments, merged_segments, task.segments.length
         )
-        merged_segments.each { |seg| seg.delete("source_range"); seg.delete("retranslated") }
+        merged_segments.each do |seg|
+          seg.delete("source_range")
+          seg.delete("retranslated")
+          seg.delete("use_original_audio")
+        end
 
         segments_file = ws.path("mix_segments.json")
         tts_files_path = ws.path("mix_tts_files.json")
+        fallback_ranges_path = ws.path("mix_fallback_ranges.json")
         File.write(segments_file, merged_segments.to_json)
         File.write(tts_files_path, tts_files.to_json)
+        File.write(fallback_ranges_path, fallback_ranges.to_json)
 
         _stdout, stderr, status = Open3.capture3(
           "python3", Rails.root.join("script/dubbing/mix_dubbed_audio.py").to_s,
           "--segments-file", segments_file,
           "--tts-files-file", tts_files_path,
+          "--fallback-ranges-file", fallback_ranges_path,
           "--background-path", background_path,
           "--vocals-path", vocals_path,
           "--original-audio-path", audio_path,
@@ -104,8 +119,11 @@ module DubbingPipeline
         same_speaker = seg["speaker"] == current["speaker"]
         # don't merge across sentence boundaries, TTS needs the pause
         ends_with_sentence = current["translated_text"].to_s.rstrip[-1, 1].to_s.match?(/[.!?;:]/)
+        # a fallback segment plays original audio, not TTS, so it can't share a
+        # merged clip with a spoken segment on either side
+        either_fallback = seg["use_original_audio"] || current["use_original_audio"]
 
-        if same_speaker && gap <= MAX_GAP_S && merged_duration <= MAX_MERGED_DURATION_S && !ends_with_sentence
+        if same_speaker && gap <= MAX_GAP_S && merged_duration <= MAX_MERGED_DURATION_S && !ends_with_sentence && !either_fallback
           current["end"] = seg["end"]
           current["text"] = "#{current["text"]} #{seg["text"]}"
           current["translated_text"] = "#{current["translated_text"]} #{seg["translated_text"]}".strip
@@ -226,9 +244,9 @@ module DubbingPipeline
     end
 
     def retranslate_shorter(text, original_text, clip_s, slot_s, target_lang)
-      # the measured clip/slot ratio converts directly into a word budget
-      current_words = text.split.length
-      target_words = [ (current_words * slot_s / clip_s).floor, 3 ].max
+      unit = SINO_TIBETAN_LANGUAGES.include?(target_lang) ? "characters" : "words"
+      current_len = unit == "characters" ? text.gsub(/\s/, "").length : text.split.length
+      target_len = [ (current_len * slot_s / clip_s).floor, 3 ].max
       conn = Faraday.new do |f|
         f.options.timeout = 60
         f.options.open_timeout = 10
@@ -242,7 +260,7 @@ module DubbingPipeline
             {
               role: "system",
               content: <<~PROMPT
-                You are a dubbing translator. The previous #{target_lang} translation was synthesized to speech and the audio came out too long: it takes #{clip_s.round(1)}s to speak but only #{slot_s.round(1)}s is available. Rewrite it in AT MOST #{target_words} words (it currently has #{current_words}) while preserving the speaker's intent. Shorter than #{target_words} words is even better.
+                You are a dubbing translator. The previous #{target_lang} translation was synthesized to speech and the audio came out too long: it takes #{clip_s.round(1)}s to speak but only #{slot_s.round(1)}s is available. Rewrite it in AT MOST #{target_len} #{unit} (it currently has #{current_len}) while preserving the speaker's intent. Shorter than #{target_len} #{unit} is even better.
 
                 Prefer:
                   - Stronger single verbs over compound constructions

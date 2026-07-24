@@ -57,6 +57,38 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
     end
   end
 
+  describe "#retranslate_shorter" do
+    let(:job) { described_class.new }
+
+    def prompt_for(text:, target_lang:, clip_s: 5.0, slot_s: 2.5)
+      captured = nil
+      req = Struct.new(:headers, :options, :body).new({}, Faraday::RequestOptions.new, nil)
+      conn = instance_double(Faraday::Connection)
+      allow(conn).to receive(:post) do |&block|
+        block.call(req)
+        captured = req.body
+        instance_double(Faraday::Response, success?: true,
+          body: { "choices" => [ { "message" => { "content" => "shorter" } } ] }.to_json)
+      end
+      allow(Faraday).to receive(:new).and_return(conn)
+
+      job.send(:retranslate_shorter, text, "original", clip_s, slot_s, target_lang)
+      JSON.parse(captured).dig("messages", 0, "content")
+    end
+
+    it "budgets Latin-script languages in words via whitespace splitting" do
+      prompt = prompt_for(text: "uno dos tres cuatro cinco seis", target_lang: "Spanish")
+      expect(prompt).to include("AT MOST 3 words (it currently has 6)")
+    end
+
+    it "budgets Sino-Tibetan languages in characters, not whitespace tokens" do
+      # .split would count this 10-character string as a single token
+      prompt = prompt_for(text: "こんにちは世界テスト", target_lang: "Japanese")
+      expect(prompt).to include("characters (it currently has 10)")
+      expect(prompt).not_to include("has 1)")
+    end
+  end
+
   describe "#merge_segments_for_tts" do
     let(:job) { described_class.new }
 
@@ -106,6 +138,19 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
       ]
       merged = job.send(:merge_segments_for_tts, segments)
       expect(merged.map { |s| s["source_range"] }).to eq([ [ 0, 1 ], [ 2, 2 ] ])
+    end
+
+    it "never merges a fallback segment into a spoken one" do
+      # segment 1 uses original audio, so it can't share a TTS clip with 0 or 2
+      segments = [
+        { "start" => 0.0, "end" => 1.0, "text" => "Uno", "translated_text" => "uno", "speaker" => "S0" },
+        { "start" => 1.1, "end" => 2.0, "text" => "Dos", "translated_text" => "Dos",
+          "speaker" => "S0", "use_original_audio" => true },
+        { "start" => 2.1, "end" => 3.0, "text" => "Tres", "translated_text" => "tres", "speaker" => "S0" }
+      ]
+      merged = job.send(:merge_segments_for_tts, segments)
+      expect(merged.length).to eq(3)
+      expect(merged[1]["use_original_audio"]).to be(true)
     end
   end
 
@@ -251,6 +296,52 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
 
         all_keys = task.reload.segments.flat_map(&:keys) + task.subtitle_segments.flat_map(&:keys)
         expect(all_keys).not_to include("source_range", "retranslated")
+      end
+    end
+
+    context "when a segment is flagged to use original audio" do
+      let(:task) do
+        create(:dubbing_task, :with_audio, :with_vocals, :with_background,
+          segments: [
+            { "start" => 0.0, "end" => 1.0, "text" => "Hello", "translated_text" => "Hola",
+              "speaker" => "SPEAKER_0", "gender" => "man", "prosody" => "neutral" },
+            { "start" => 2.0, "end" => 4.0, "text" => "world", "translated_text" => "world",
+              "speaker" => "SPEAKER_0", "gender" => "man", "prosody" => "neutral",
+              "use_original_audio" => true }
+          ]
+        )
+      end
+
+      let(:written) { {} }
+
+      before do
+        stub_dubbing_workspace
+        allow(Open3).to receive(:capture3).and_return([ "60.0", "", double(success?: true) ])
+        allow(File).to receive(:write) { |path, body| written[File.basename(path)] = body }
+        allow_any_instance_of(DubbingTask).to receive(:voice_for).and_return("v1")
+        # spoken segment yields a clip; fallback segment must never reach TTS
+        allow_any_instance_of(described_class).to receive(:generate_tts_with_retranslation)
+          .and_return([ "/tts/0.mp3", "Hola" ])
+        allow(DubbingFfprobe).to receive(:duration_seconds).and_return(60.0)
+        allow(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later)
+      end
+
+      it "writes the fallback segment's time range to the fallback-ranges file" do
+        described_class.new.perform(task.id)
+        expect(JSON.parse(written["mix_fallback_ranges.json"])).to eq([ [ 2.0, 4.0 ] ])
+      end
+
+      it "does not generate a TTS clip for the fallback segment" do
+        described_class.new.perform(task.id)
+        # only the spoken segment (index 0) ends up in the tts files manifest
+        tts = JSON.parse(written["mix_tts_files.json"])
+        expect(tts.map { |f| f["index"] }).to eq([ 0 ])
+      end
+
+      it "strips use_original_audio from persisted segments" do
+        described_class.new.perform(task.id)
+        all_keys = task.reload.segments.flat_map(&:keys)
+        expect(all_keys).not_to include("use_original_audio")
       end
     end
 

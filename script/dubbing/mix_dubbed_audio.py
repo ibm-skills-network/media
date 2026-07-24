@@ -372,6 +372,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--segments-file", required=True)
     parser.add_argument("--tts-files-file", required=True)
+    parser.add_argument("--fallback-ranges-file", required=False)
     parser.add_argument("--background-path", required=True)
     parser.add_argument("--vocals-path", required=True)
     parser.add_argument("--original-audio-path", required=True)
@@ -384,6 +385,10 @@ def main():
         segments = json.load(f)
     with open(args.tts_files_file) as f:
         tts_files = json.load(f)
+    fallback_ranges_s = []
+    if args.fallback_ranges_file:
+        with open(args.fallback_ranges_file) as f:
+            fallback_ranges_s = json.load(f)
 
     bg_sr, bg_ch, total_ms = probe_audio_format(args.background_path)
 
@@ -412,7 +417,19 @@ def main():
         for s, e in silent_regions_s
     ]
     silent_regions_ms = [(s, e) for s, e in silent_regions_ms if e > s]
-    patch_ranges_ms = subtract_overlaps(silent_regions_ms, placed_ranges_ms)
+
+    # Segments where the translation failed: patch the original (untranslated) audio
+    # back in
+    fallback_ranges_ms = [
+        (max(0, int(s * 1000)), min(total_ms, int(e * 1000)))
+        for s, e in fallback_ranges_s
+    ]
+    fallback_ranges_ms = [(s, e) for s, e in fallback_ranges_ms if e > s]
+    for s, e in fallback_ranges_ms:
+        print(f"  translation-fallback region: {s / 1000:.1f}s - {e / 1000:.1f}s", file=sys.stderr)
+
+    patch_candidates_ms = merge_close_ranges(silent_regions_ms + fallback_ranges_ms, DUCK_MERGE_GAP_MS)
+    patch_ranges_ms = subtract_overlaps(patch_candidates_ms, placed_ranges_ms)
     for s, e in patch_ranges_ms:
         print(f"  splicing original audio into {s / 1000:.1f}s-{e / 1000:.1f}s", file=sys.stderr)
 
@@ -453,6 +470,7 @@ def main():
         "placed_clips": len(placed_ranges_ms),
         "duck_ranges": len(duck_ranges_ms),
         "silent_regions": len(silent_regions_s),
+        "fallback_regions": len(fallback_ranges_ms),
         "patch_ranges": len(patch_ranges_ms),
         "duration_ms": total_ms,
         "output_bytes": os.path.getsize(output_path),

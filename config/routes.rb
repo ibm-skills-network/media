@@ -21,7 +21,9 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1, defaults: { format: :json } do
       namespace :voice_catalog do
-        resources :languages, only: %w[ index ]
+        resources :languages, only: %w[ index ] do
+          member { get :dialects }
+        end
       end
 
       namespace :async do

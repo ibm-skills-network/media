@@ -121,6 +121,29 @@ RSpec.describe DubbingTask, type: :model do
       task.segments = [ { "speaker" => "SPEAKER_0" } ]
       expect(man_pool).to include(task.voice_for("SPEAKER_0"))
     end
+
+    it "queries the catalog once per gender, not once per lookup" do
+      catalog = instance_double(ElevenlabsVoiceCatalog)
+      allow(ElevenlabsVoiceCatalog).to receive(:new).and_return(catalog)
+      allow(catalog).to receive(:pool_for) { |gender:, **| gender == "woman" ? woman_pool : man_pool }
+      task.segments = [
+        { "speaker" => "SPEAKER_0", "gender" => "man" },
+        { "speaker" => "SPEAKER_1", "gender" => "man" },
+        { "speaker" => "SPEAKER_2", "gender" => "woman" }
+      ]
+
+      3.times { task.segments.each { |s| task.voice_for(s["speaker"]) } }
+
+      expect(catalog).to have_received(:pool_for).twice # once for man, once for woman
+    end
+
+    it "keeps a speaker on the same voice even if the pool changes between lookups" do
+      task.segments = [ { "speaker" => "SPEAKER_0", "gender" => "man" } ]
+      first = task.voice_for("SPEAKER_0")
+      # simulate the ElevenLabs cache expiring and returning a reordered pool
+      allow_any_instance_of(ElevenlabsVoiceCatalog).to receive(:pool_for).and_return(man_pool.reverse)
+      expect(task.voice_for("SPEAKER_0")).to eq(first)
+    end
   end
 
   describe "#export_segments" do

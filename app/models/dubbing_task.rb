@@ -78,23 +78,12 @@ class DubbingTask < ApplicationRecord
   validate :target_language_is_not_source
   validate :video_url_is_http
 
+  def voice_map
+    @voice_map ||= build_voice_map
+  end
+
   def voice_for(speaker)
-    gender = segments.find { |s| s["speaker"] == speaker }&.dig("gender") || "man"
-    speakers_in_gender = segments.select { |s| s["gender"] == gender }
-                                 .map { |s| s["speaker"] }
-                                 .uniq
-
-    voice_pool = ElevenlabsVoiceCatalog.new.pool_for(
-      language_code: lang_code,
-      dialect: dialect.to_s.tr("-", " "),
-      gender: gender,
-      min_size: speakers_in_gender.size
-    )
-
-    raise "no voices available for dialect=#{dialect} gender=#{gender}" if voice_pool.blank?
-
-    idx = speakers_in_gender.index(speaker) || 0
-    voice_pool[idx % voice_pool.length]
+    voice_map.fetch(speaker) { voice_map.values.first }
   end
 
   def lang_code
@@ -119,6 +108,23 @@ class DubbingTask < ApplicationRecord
   end
 
   private
+
+  def build_voice_map
+    catalog = ElevenlabsVoiceCatalog.new
+    map = {}
+    segments.group_by { |s| s["gender"] || "man" }.each do |gender, gender_segments|
+      speakers = gender_segments.map { |s| s["speaker"] }.uniq
+      pool = catalog.pool_for(
+        language_code: lang_code,
+        dialect: dialect.to_s.tr("-", " "),
+        gender: gender,
+        min_size: speakers.size
+      )
+      raise "no voices available for dialect=#{dialect} gender=#{gender}" if pool.blank?
+      speakers.each_with_index { |speaker, idx| map[speaker] = pool[idx % pool.length] }
+    end
+    map
+  end
 
   def target_language_is_not_source
     return unless language && LANGUAGE_CODES[language] == SOURCE_LANG_CODE
