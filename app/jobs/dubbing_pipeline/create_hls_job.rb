@@ -27,11 +27,17 @@ module DubbingPipeline
         lang_code = task.lang_code
 
         src_code = DubbingTask::SOURCE_LANG_CODE
+        # For an English->English accuracy run the dubbed track shares the source
+        # ISO code, which would make its audio/subtitle renditions collide with the
+        # originals (same filenames, same LANGUAGE tag). Suffix the dub so the
+        # player still sees a distinct, selectable rendition. Foreign dubs are
+        # unaffected because dub_code == lang_code there.
+        dub_code = lang_code == src_code ? "#{lang_code}-dub" : lang_code
 
         vtt_src = File.join(hls_dir, "subs_#{src_code}.webvtt")
-        vtt_dub = File.join(hls_dir, "subs_#{lang_code}.webvtt")
+        vtt_dub = File.join(hls_dir, "subs_#{dub_code}.webvtt")
         srt_src = File.join(hls_dir, "transcript_#{src_code}.srt")
-        srt_dub = File.join(hls_dir, "transcript_#{lang_code}.srt")
+        srt_dub = File.join(hls_dir, "transcript_#{dub_code}.srt")
 
         subtitle_segments = task.export_segments
         write_subtitles(subtitle_segments, vtt_src, format: :vtt, use_translated: false)
@@ -75,7 +81,7 @@ module DubbingPipeline
         )
 
         # one subtitle playlist per language, each wrapping its webvtt as a single segment
-        [ src_code, lang_code ].uniq.each do |lang|
+        [ src_code, dub_code ].uniq.each do |lang|
           File.write(File.join(hls_dir, "playlist_s-#{lang}.m3u8"), <<~M3U8)
             #EXTM3U
             #EXT-X-TARGETDURATION:#{duration.to_i + 1}
@@ -89,11 +95,11 @@ module DubbingPipeline
 
         # vtt chapters for the HLS player, json chapters for the COS player UI
         write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{src_code}.vtt"), duration, key: "title")
-        write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{lang_code}.vtt"), duration, key: "title_dubbed")
+        write_chapters_vtt(task.chapters, File.join(hls_dir, "chapters_#{dub_code}.vtt"), duration, key: "title_dubbed")
         File.write(File.join(hls_dir, "chapters.json"), JSON.pretty_generate(task.chapters))
 
-        write_master_playlist(File.join(hls_dir, "master.m3u8"), task.language, lang_code, src_code)
-        write_cos_player_json(task, hls_dir, duration, lang_code)
+        write_master_playlist(File.join(hls_dir, "master.m3u8"), task.language, dub_code, src_code)
+        write_cos_player_json(task, hls_dir, duration, dub_code)
 
         DubbingHlsUploader.upload_dir(hls_dir, task)
       end
@@ -146,24 +152,24 @@ module DubbingPipeline
       end
     end
 
-    def write_master_playlist(path, language, lang_code, src_code)
+    def write_master_playlist(path, language, dub_code, src_code)
       src_name = DubbingTask::SOURCE_LANG_NAME
       # DEFAULT=YES is the track the player loads on startup, AUTOSELECT=YES lets the user pick it
       File.write(path, <<~M3U8)
         #EXTM3U
 
-        #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-dub.m3u8",GROUP-ID="audio",LANGUAGE="#{lang_code}",NAME="#{language}",DEFAULT=YES,AUTOSELECT=YES
+        #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-dub.m3u8",GROUP-ID="audio",LANGUAGE="#{dub_code}",NAME="#{language}",DEFAULT=YES,AUTOSELECT=YES
         #EXT-X-MEDIA:TYPE=AUDIO,URI="playlist_a-eng.m3u8",GROUP-ID="audio",LANGUAGE="#{src_code}",NAME="#{src_name}",AUTOSELECT=YES
 
         #EXT-X-MEDIA:TYPE=SUBTITLES,URI="playlist_s-#{src_code}.m3u8",GROUP-ID="subs",LANGUAGE="#{src_code}",NAME="#{src_name}",DEFAULT=YES,AUTOSELECT=YES
-        #EXT-X-MEDIA:TYPE=SUBTITLES,URI="playlist_s-#{lang_code}.m3u8",GROUP-ID="subs",LANGUAGE="#{lang_code}",NAME="#{language}",AUTOSELECT=YES
+        #EXT-X-MEDIA:TYPE=SUBTITLES,URI="playlist_s-#{dub_code}.m3u8",GROUP-ID="subs",LANGUAGE="#{dub_code}",NAME="#{language}",AUTOSELECT=YES
 
         #EXT-X-STREAM-INF:BANDWIDTH=2000000,AUDIO="audio",SUBTITLES="subs"
         playlist_v.m3u8
       M3U8
     end
 
-    def write_cos_player_json(task, output_dir, duration, lang_code)
+    def write_cos_player_json(task, output_dir, duration, dub_code)
       src_code = DubbingTask::SOURCE_LANG_CODE
       src_name = DubbingTask::SOURCE_LANG_NAME
 
@@ -188,7 +194,7 @@ module DubbingPipeline
           videos: [ { url: "master.m3u8", quality: "original", downloadable: true, hd: true } ],
           subtitles: [
             { url: "transcript_#{src_code}.srt", label: src_name, language: src_code.upcase, format: "srt" },
-            { url: "transcript_#{lang_code}.srt", label: task.language, language: lang_code.upcase, format: "srt" }
+            { url: "transcript_#{dub_code}.srt", label: task.language, language: dub_code.upcase, format: "srt" }
           ]
         }
       }

@@ -39,11 +39,25 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
       expect(DubbingHlsUploader).to have_received(:upload_dir).with(anything, an_instance_of(DubbingTask))
     end
 
-    context "when the target language equals the source language" do
-      it "packages HLS without raising (English->English accuracy checks)" do
-        allow_any_instance_of(DubbingTask).to receive(:lang_code).and_return("en")
+    context "when the target language equals the source language (English->English accuracy checks)" do
+      before { allow_any_instance_of(DubbingTask).to receive(:lang_code).and_return("en") }
+
+      it "packages HLS without raising" do
         expect { described_class.new.perform(task.id) }.not_to raise_error
         expect(task.reload.hls_path).to end_with("master.m3u8")
+      end
+
+      it "gives the dubbed audio a LANGUAGE tag distinct from the original so the player exposes both" do
+        master = nil
+        allow(File).to receive(:write) do |path, content|
+          master = content if path.to_s.end_with?("master.m3u8")
+        end
+
+        described_class.new.perform(task.id)
+
+        # dubbed rendition suffixed so it doesn't collide with the "en" original
+        expect(master).to include('URI="playlist_a-dub.m3u8"', 'LANGUAGE="en-dub"')
+        expect(master).to include('URI="playlist_a-eng.m3u8"', 'LANGUAGE="en"')
       end
     end
 
