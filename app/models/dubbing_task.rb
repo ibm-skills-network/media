@@ -75,7 +75,6 @@ class DubbingTask < ApplicationRecord
   validates :video_url, presence: true
   validates :language, inclusion: { in: SUPPORTED_LANGUAGES }
   validates :dialect, presence: true
-  validate :target_language_is_not_source
   validate :video_url_is_http
 
   def voice_map
@@ -124,11 +123,6 @@ class DubbingTask < ApplicationRecord
       speakers.each_with_index { |speaker, idx| map[speaker] = pool[idx % pool.length] }
     end
     map
-  end
-
-  def target_language_is_not_source
-    return unless language && LANGUAGE_CODES[language] == SOURCE_LANG_CODE
-    errors.add(:language, "cannot dub to the source language (#{SOURCE_LANG_CODE})")
   end
 
   def assign_playback_key

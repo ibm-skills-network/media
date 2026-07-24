@@ -25,7 +25,6 @@ module DubbingPipeline
 
         duration = DubbingFfprobe.duration_seconds(dubbed_video_path)
         lang_code = task.lang_code
-        raise "CreateHlsJob: target language cannot equal source '#{DubbingTask::SOURCE_LANG_CODE}'" if lang_code == DubbingTask::SOURCE_LANG_CODE
 
         src_code = DubbingTask::SOURCE_LANG_CODE
 

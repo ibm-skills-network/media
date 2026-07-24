@@ -40,9 +40,10 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
     end
 
     context "when the target language equals the source language" do
-      it "raises before generating any HLS artifacts" do
+      it "packages HLS without raising (English->English accuracy checks)" do
         allow_any_instance_of(DubbingTask).to receive(:lang_code).and_return("en")
-        expect { described_class.new.perform(task.id) }.to raise_error(RuntimeError, /target language cannot equal source/)
+        expect { described_class.new.perform(task.id) }.not_to raise_error
+        expect(task.reload.hls_path).to end_with("master.m3u8")
       end
     end
 
