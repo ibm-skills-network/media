@@ -129,16 +129,32 @@ RSpec.describe DubbingPipeline::TranslateJob, type: :job do
   describe "#length_budget" do
     let(:job) { described_class.new }
 
-    it "computes a word budget from duration and the language's TTS pace" do
-      expect(job.send(:length_budget, 3.8, "Spanish")).to eq("max 8 words")
+    it "emits a two-sided band with an aim and a hard ceiling" do
+      expect(job.send(:length_budget, 3.8, "one two three four five", "Spanish"))
+        .to eq("aim ~11, max 12 words")
+    end
+
+    it "floors the aim at the faithful source length so a fitting line is never compressed" do
+      # A 12-word source in 3.8s fits; the aim should track the source, not shrink below it.
+      expect(job.send(:length_budget, 3.8, "a b c d e f g h i j k l", "Spanish"))
+        .to eq("aim ~12, max 12 words")
+    end
+
+    it "clamps the aim down to the hard ceiling when the source is too wordy to fit" do
+      # 20-word source in 2.0s cannot fit; aim must not exceed the ceiling.
+      budget = job.send(:length_budget, 2.0, ("word " * 20).strip, "Spanish")
+      aim = budget[/aim ~(\d+)/, 1].to_i
+      cap = budget[/max (\d+)/, 1].to_i
+      expect(aim).to eq(cap)
     end
 
     it "never drops below the minimum budget on tiny slots" do
-      expect(job.send(:length_budget, 0.5, "Spanish")).to eq("max 3 words")
+      expect(job.send(:length_budget, 0.5, "hi there", "Spanish")).to eq("aim ~3, max 3 words")
     end
 
     it "uses character budgets for CJK languages" do
-      expect(job.send(:length_budget, 4.0, "Japanese")).to eq("max 26 characters")
+      expect(job.send(:length_budget, 4.0, ("w " * 8).strip, "Japanese"))
+        .to eq("aim ~28, max 33 characters")
     end
   end
 

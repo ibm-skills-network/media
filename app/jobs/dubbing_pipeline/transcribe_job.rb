@@ -8,14 +8,14 @@ module DubbingPipeline
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg.dig("args", 0, "arguments", 0))
-      next unless task
+      next if task.nil? || task.terminal?
       task.update!(status: "failed", error_message: exception.message)
       task.purge_pipeline_artifacts!(include_hls: true)
     end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
-      return if task.failed? || task.success?
+      return if task.terminal?
 
       api_segments = DubbingWorkspace.with("#{task_id}-transcribe") do |ws|
         audio_path = ws.fetch(task.audio, "audio.wav")
@@ -170,6 +170,7 @@ module DubbingPipeline
                 - Add proper end punctuation (. ? !) to every sentence
                 - NEVER use em-dashes or en-dashes. Use commas or periods instead. The text will be spoken aloud by TTS.
                 - For hyphenated technical terms (zero-shot, chain-of-thought), remove the hyphens
+                - LISTS: when the speaker enumerates items or steps, keep the enumeration structure and its ordinals ("first", "second", "1.", "2."). End each list item with a period so the spoken output pauses between items. E.g. output "First, we load the data. Second, we clean it. Third, we train." as written, not collapsed into one comma-run. A short intro clause ("There are three steps:") may become its own sentence ending in a period.
                 - Return a JSON object: {"sentences": [{"start_marker": "[0:1.23]", "text": "Complete sentence."}]}
               PROMPT
             },

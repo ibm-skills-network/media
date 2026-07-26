@@ -9,30 +9,45 @@ module DubbingPipeline
     MAX_BATCH_RETRIES = 3
     MAX_MISSING_RETRIES = 2
 
-    # Speaking pace per language, ~10% below measured TTS output so compliant
-    # lines still fit slower voices, CJK is measured in characters
+    # Per-language budgeting. Each entry is:
+    #   [ pace, unit, expansion ]
+    #   pace      TTS words/sec (or CJK chars/sec) at the voice's natural, unhurried pace.
+    #             This is the real measured output pace, NOT shaded down: the budget is
+    #             now a two-sided band, so headroom comes from the hard-cap clamp below,
+    #             not from a deliberately-low rate that starved faithful lines.
+    #   unit      "words" or, for CJK, "characters" (what we count in the target text).
+    #   expansion how much longer the target runs than the English source, in target
+    #             units per English word. Words->words for most languages; for CJK it
+    #             converts English words into target characters. Used to FLOOR the budget
+    #             at the length a faithful translation actually needs, so a line that fit
+    #             its time in English is never forced to compress.
     LENGTH_BUDGET_RATES = {
-      "Spanish"    => [ 2.3, "words" ],
-      "Italian"    => [ 2.3, "words" ],
-      "Portuguese" => [ 2.3, "words" ],
-      "French"     => [ 2.6, "words" ],
-      "German"     => [ 2.2, "words" ],
-      "Japanese"   => [ 6.5, "characters" ],
-      "Chinese"    => [ 4.2, "characters" ]
+      "Spanish"    => [ 2.9, "words",      1.25 ],
+      "Italian"    => [ 2.9, "words",      1.20 ],
+      "Portuguese" => [ 2.9, "words",      1.25 ],
+      "French"     => [ 3.0, "words",      1.28 ],
+      "German"     => [ 2.6, "words",      1.10 ],
+      "Japanese"   => [ 7.2, "characters", 1.40 ],
+      "Chinese"    => [ 4.8, "characters", 1.40 ]
     }.freeze
-    DEFAULT_BUDGET_RATE = [ 2.4, "words" ].freeze
+    DEFAULT_BUDGET_RATE = [ 2.9, "words", 1.0 ].freeze
+
+    # How far a clip may exceed the comfortable-pace budget and still be accepted
+    # without audible speedup. Mirrors GenerateDubbedAudioJob::COMFORT_SPEED so the
+    # translator never asks for more than the mixer will take cleanly.
+    COMFORT_SPEED = 1.15
     MIN_WORD_BUDGET = 3
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg.dig("args", 0, "arguments", 0))
-      next unless task
+      next if task.nil? || task.terminal?
       task.update!(status: "failed", error_message: exception.message)
       task.purge_pipeline_artifacts!(include_hls: true)
     end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
-      return if task.failed? || task.success?
+      return if task.terminal?
 
       segments = task.segments
 
@@ -179,7 +194,7 @@ module DubbingPipeline
       batch[:translate_range].each do |i|
         seg = segments[i]
         duration = (seg["end"] - seg["start"]).round(1)
-        lines << "[#{i}|#{duration}s|#{length_budget(duration, target_lang)}] #{seg["text"]}"
+        lines << "[#{i}|#{duration}s|#{length_budget(duration, seg["text"], target_lang)}] #{seg["text"]}"
       end
       payload_text = lines.join("\n")
 
@@ -214,12 +229,31 @@ module DubbingPipeline
       parsed
     end
 
-    # Word (or CJK character) budget from the line's duration, so the model
-    # never has to estimate pace itself
-    def length_budget(duration, target_lang)
-      rate, unit = LENGTH_BUDGET_RATES.fetch(target_lang, DEFAULT_BUDGET_RATE)
-      budget = [ (duration * rate).floor, MIN_WORD_BUDGET ].max
-      "max #{budget} #{unit}"
+    # A two-sided length band for the line, so the model has both a target to
+    # FILL and a ceiling not to exceed. Emitted as "aim ~X, max Y <unit>".
+    #
+    #   hard_cap  the most the line may run and still fit its slot without audible
+    #             speedup (comfortable pace x COMFORT_SPEED x duration).
+    #   want      the length a FAITHFUL translation actually needs, from the source's
+    #             own word count times the language's expansion. This floors the aim so
+    #             a line that already fit its time in English is never told to compress.
+    #   aim       want, clamped into [comfortable pace target, hard_cap]. The aim never
+    #             dips below the comfortable-pace target (kills under-run) and never
+    #             exceeds hard_cap (kills over-run).
+    #
+    # Before, the budget was a single `max N` sitting ~10% under real pace, so the
+    # model shrank every line toward it and the dub finished early. The floor is the fix.
+    def length_budget(duration, source_text, target_lang)
+      rate, unit, expansion = LENGTH_BUDGET_RATES.fetch(target_lang, DEFAULT_BUDGET_RATE)
+
+      hard_cap = [ (duration * rate * COMFORT_SPEED).floor, MIN_WORD_BUDGET ].max
+      comfortable = [ (duration * rate).floor, MIN_WORD_BUDGET ].max
+
+      source_words = source_text.to_s.split.length
+      want = (source_words * expansion).round
+
+      aim = want.clamp(comfortable, hard_cap)
+      "aim ~#{aim}, max #{hard_cap} #{unit}"
     end
 
     def system_prompt(target_lang)
@@ -230,26 +264,31 @@ module DubbingPipeline
 
         Translate only the lines formatted as [index|duration|budget].
 
-        Every translation is spoken aloud by a TTS voice that talks at a fixed natural pace, and the audio must finish within the original line's duration. The system measures the generated audio afterwards: a translation that runs over gets mechanically sped up and becomes hard to understand. Running slightly short is completely fine, a small pause is added. When in doubt, ALWAYS pick the shorter phrasing.
+        Every translation is spoken aloud by a TTS voice at a natural pace, and the audio should fill about as much time as the original line took. Each line carries a length band "aim ~X, max Y": X is the length that fills the slot naturally, Y is the hard ceiling. A line that runs OVER Y gets mechanically sped up and sounds rushed; a line that comes in far UNDER X leaves dead air and the dub drifts out of sync with the speaker. Land in the band.
 
         LENGTH RULES (most important):
-        1. Each line's budget ("max N words" or "max N characters") is precomputed from its duration and the TTS speaking pace. Stay AT or UNDER the budget.
-        2. Fitting the budget beats literal completeness: drop fillers, hedges, and redundancy while keeping the message. Never pad a line that comes out short.
-           When you compress, NEVER cut content a learner acts on: negations, numbers, qualifiers like "again", "only", "first", or full technique names (keep "chain of thought prompting", not just "chain of thought").
-        3. #{target_lang} may need more words or syllables than English to say the same thing. Compress the phrasing up front, don't translate literally and hope it fits.
+        1. Translate the line FAITHFULLY and COMPLETELY first. Aim for ~X in the band; you may go up to Y but never past it. Do NOT shrink a faithful translation below the aim just to be safe. The aim is where you want to be, not a limit to beat.
+        2. Only compress when the faithful translation would exceed Y. When you must compress, drop fillers, hedges, and redundancy while keeping the message. NEVER cut content a learner acts on: negations, numbers, ordinals ("first", "second"), qualifiers like "again" or "only", or full technique names (keep "chain of thought prompting", not just "chain of thought").
+        3. If the faithful translation lands well under the aim, that is fine, DON'T pad with filler, but don't compress it further either. Prefer the complete, natural phrasing over a clipped one.
+        4. #{target_lang} may need more words or syllables than English. The band already accounts for this, so translate naturally and trust the band; only tighten if you would exceed Y.
 
-        This is the right amount of compression (shown for English to Spanish, do the equivalent in #{target_lang}):
-        [3|3.8s|max 8 words] So, what we're going to do now is take a look at zero shot prompting.
-        BAD, literal, 15 words: Entonces, lo que vamos a hacer ahora es echar un vistazo al zero shot prompting.
-        GOOD, 6 words: Ahora veremos el zero shot prompting.
+        Compress ONLY when over the ceiling (shown English to Spanish, do the equivalent in #{target_lang}):
+        [3|3.8s|aim ~9, max 11 words] So, what we're going to do now is take a look at zero shot prompting.
+        FAITHFUL, fits (9 words): Ahora vamos a echar un vistazo al zero shot prompting.
+        OVER-COMPRESSED, don't do this (6 words): Ahora veremos el zero shot prompting.
+
+        LISTS AND ENUMERATIONS:
+        5. When the speaker enumerates items or steps, KEEP every item and KEEP the ordinals ("first / second / third", "one / two / three"). These are the last thing to compress, not the first.
+        6. Separate list items with sentence-final punctuation (a period, or a semicolon) rather than only commas, so the voice pauses between items instead of rushing them together. Example: "First, load the data. Second, clean it. Third, train the model." NOT "First load the data, second clean it, third train the model."
+        7. Keep parallel grammatical structure across items so the enumeration is audible as a list.
 
         STYLE RULES:
-        4. Produce natural, spoken-style translations. NOT literal word-by-word.
-        5. Prefer contractions and colloquial phrasing over formal/written style.
-        6. Preserve the emotional tone and intent, but freely rephrase for natural flow.
-        7. NEVER skip a line or leave it empty.
-        8. NEVER use em-dashes, en-dashes, or hyphens as parenthetical separators. Use commas instead. The text will be read aloud by TTS.
-        9. For technical terms with hyphens (like 'zero-shot'), write them as spoken words (like 'zero shot').
+        8. Produce natural, spoken-style translations. NOT literal word-by-word.
+        9. Prefer contractions and colloquial phrasing over formal/written style.
+        10. Preserve the emotional tone and intent, but freely rephrase for natural flow.
+        11. NEVER skip a line or leave it empty.
+        12. NEVER use em-dashes, en-dashes, or hyphens as parenthetical separators. Use commas instead. The text will be read aloud by TTS.
+        13. For technical terms with hyphens (like 'zero-shot'), write them as spoken words (like 'zero shot').
 
         Return translated lines in same format, one per input line:
         [0|2.5s] Translation here

@@ -12,7 +12,8 @@ from pydub import AudioSegment
 SAMPLE_RATE = 16000
 DUCK_DB = -8
 MAX_SPEED = 1.35
-MIN_SPEED = 0.85
+MIN_SPEED = 0.95
+GENTLE_STRETCH_MIN_RATIO = 0.85
 FADE_MS = 15
 MIN_SLOT_MS = 100
 SLOT_PAD_MS = 500
@@ -98,7 +99,17 @@ def adjust_speed(audio, speed, output_dir, segment_index):
 
 
 def place_clip(tts_audio, slot_ms, seg_duration_ms, output_dir, segment_index):
-    """Fits a TTS clip into the available slot, speeds up if too long, slows down gently if much shorter"""
+    """Fit a TTS clip into its slot.
+
+    Too long  -> speed up (up to MAX_SPEED, then hard-trim as a last resort).
+    Too short -> keep it at natural pace. We only apply a GENTLE stretch to nudge
+                 a nearly-segment-length clip up toward the speech window, and even
+                 then never past MIN_SPEED. We deliberately do NOT drag the voice out
+                 to fill the whole slot: the leftover time becomes trailing silence,
+                 which reproduces the original's talk-then-pause rhythm and keeps the
+                 dub from droning over a pause the speaker actually left. The caller
+                 lays this clip at the slot start, so that silence falls after the
+                 speech, where it belongs."""
     if len(tts_audio) > slot_ms:
         speed = len(tts_audio) / slot_ms
         if speed <= MAX_SPEED:
@@ -108,10 +119,13 @@ def place_clip(tts_audio, slot_ms, seg_duration_ms, output_dir, segment_index):
             if len(tts_audio) > slot_ms:
                 tts_audio = tts_audio[:slot_ms].fade_out(50)
     elif seg_duration_ms > 0 and len(tts_audio) < seg_duration_ms:
-        speed = len(tts_audio) / seg_duration_ms
-        if speed < MIN_SPEED:
-            speed = MIN_SPEED
-        tts_audio = adjust_speed(tts_audio, speed, output_dir, segment_index)
+        # Gentle nudge only: worth doing when the clip is already close to the
+        # segment length. If it's far shorter, stretching to MIN_SPEED can't close
+        # the gap and only slurs the voice, so leave it natural and let the
+        # trailing silence carry the rest.
+        if len(tts_audio) >= seg_duration_ms * GENTLE_STRETCH_MIN_RATIO:
+            speed = max(len(tts_audio) / seg_duration_ms, MIN_SPEED)
+            tts_audio = adjust_speed(tts_audio, speed, output_dir, segment_index)
     return tts_audio.fade_in(FADE_MS).fade_out(FADE_MS)
 
 

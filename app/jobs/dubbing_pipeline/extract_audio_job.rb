@@ -4,14 +4,14 @@ module DubbingPipeline
 
     sidekiq_retries_exhausted do |msg, exception|
       task = DubbingTask.find_by(id: msg.dig("args", 0, "arguments", 0))
-      next unless task
+      next if task.nil? || task.terminal?
       task.update!(status: "failed", error_message: exception.message)
       task.purge_pipeline_artifacts!(include_hls: true)
     end
 
     def perform(task_id)
       task = DubbingTask.find(task_id)
-      return if task.failed? || task.success?
+      return if task.terminal?
 
       task.processing!
 
@@ -19,8 +19,6 @@ module DubbingPipeline
         audio_path = ws.path("audio.wav")
         source_video_path = ws.path("source.mp4")
 
-        # -protocol_whitelist has to come before -i to apply to the input, blocks
-        # file://, concat:, pipe: even when a redirect or playlist asks for them
         _stdout, stderr, status = Open3.capture3(
           "ffmpeg", "-y",
           "-protocol_whitelist", "http,https,tls,tcp",

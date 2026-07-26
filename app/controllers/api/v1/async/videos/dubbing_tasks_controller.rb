@@ -3,7 +3,7 @@ module Api
     module Async
       module Videos
         class DubbingTasksController < ApiController
-          before_action :set_dubbing_task, only: %w[show]
+          before_action :set_dubbing_task, only: %w[show destroy]
 
           def show
             render json: {
@@ -17,6 +17,12 @@ module Api
             task = DubbingTask.create!(dubbing_params)
             DubbingPipeline::ExtractAudioJob.perform_later(task.id)
             render json: { id: task.id, status: task.status }, status: :created
+          end
+
+          # Idempotent: cancelling an already-finished task is a no-op, not an error
+          def destroy
+            @dubbing_task.cancel!
+            render json: { id: @dubbing_task.id, status: @dubbing_task.status }, status: :ok
           end
 
           private

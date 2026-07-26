@@ -23,8 +23,23 @@ class DubbingTask < ApplicationRecord
     pending: "pending",
     processing: "processing",
     success: "success",
-    failed: "failed"
+    failed: "failed",
+    cancelled: "cancelled"
   }, default: "pending"
+
+  # Pipeline jobs stop chaining once a task reaches any of these
+  def terminal?
+    failed? || success? || cancelled?
+  end
+
+  # Sidekiq cannot preempt a running job, so cancelling flips state and lets each job bail at its guard
+  def cancel!
+    return false if terminal?
+
+    update!(status: "cancelled")
+    purge_pipeline_artifacts!(include_hls: true)
+    true
+  end
 
   VOICE_STYLE_PARAMS = {
     "excited"    => { stability: 0.4, similarity_boost: 0.75, style: 0.5 },
