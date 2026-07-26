@@ -19,7 +19,6 @@ module Api
             render json: { id: task.id, status: task.status }, status: :created
           end
 
-          # Idempotent: cancelling an already-finished task is a no-op, not an error
           def destroy
             @dubbing_task.cancel!
             render json: { id: @dubbing_task.id, status: @dubbing_task.status }, status: :ok

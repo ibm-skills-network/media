@@ -24,9 +24,13 @@ RSpec.describe DubbingTask, type: :model do
       expect(task.errors[:dialect]).to be_present
     end
 
-    it "allows a target language whose ISO code equals the source language (English->English accuracy checks)" do
+    it "rejects target languages whose ISO code equals the source language" do
+      stub_const("DubbingTask::LANGUAGE_CODES", { "English" => "en" })
+      stub_const("DubbingTask::SUPPORTED_LANGUAGES", [ "English" ])
+
       task = build(:dubbing_task, language: "English")
-      expect(task).to be_valid
+      expect(task).not_to be_valid
+      expect(task.errors[:language].join).to match(/cannot dub to the source/)
     end
 
     describe "video_url scheme validation" do

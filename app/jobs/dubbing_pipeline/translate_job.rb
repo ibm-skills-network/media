@@ -12,15 +12,10 @@ module DubbingPipeline
     # Per-language budgeting. Each entry is:
     #   [ pace, unit, expansion ]
     #   pace      TTS words/sec (or CJK chars/sec) at the voice's natural, unhurried pace.
-    #             This is the real measured output pace, NOT shaded down: the budget is
-    #             now a two-sided band, so headroom comes from the hard-cap clamp below,
-    #             not from a deliberately-low rate that starved faithful lines.
     #   unit      "words" or, for CJK, "characters" (what we count in the target text).
     #   expansion how much longer the target runs than the English source, in target
     #             units per English word. Words->words for most languages; for CJK it
-    #             converts English words into target characters. Used to FLOOR the budget
-    #             at the length a faithful translation actually needs, so a line that fit
-    #             its time in English is never forced to compress.
+    #             converts English words into target characters.
     LENGTH_BUDGET_RATES = {
       "Spanish"    => [ 2.9, "words",      1.25 ],
       "Italian"    => [ 2.9, "words",      1.20 ],
@@ -32,9 +27,6 @@ module DubbingPipeline
     }.freeze
     DEFAULT_BUDGET_RATE = [ 2.9, "words", 1.0 ].freeze
 
-    # How far a clip may exceed the comfortable-pace budget and still be accepted
-    # without audible speedup. Mirrors GenerateDubbedAudioJob::COMFORT_SPEED so the
-    # translator never asks for more than the mixer will take cleanly.
     COMFORT_SPEED = 1.15
     MIN_WORD_BUDGET = 3
 
@@ -229,20 +221,6 @@ module DubbingPipeline
       parsed
     end
 
-    # A two-sided length band for the line, so the model has both a target to
-    # FILL and a ceiling not to exceed. Emitted as "aim ~X, max Y <unit>".
-    #
-    #   hard_cap  the most the line may run and still fit its slot without audible
-    #             speedup (comfortable pace x COMFORT_SPEED x duration).
-    #   want      the length a FAITHFUL translation actually needs, from the source's
-    #             own word count times the language's expansion. This floors the aim so
-    #             a line that already fit its time in English is never told to compress.
-    #   aim       want, clamped into [comfortable pace target, hard_cap]. The aim never
-    #             dips below the comfortable-pace target (kills under-run) and never
-    #             exceeds hard_cap (kills over-run).
-    #
-    # Before, the budget was a single `max N` sitting ~10% under real pace, so the
-    # model shrank every line toward it and the dub finished early. The floor is the fix.
     def length_budget(duration, source_text, target_lang)
       rate, unit, expansion = LENGTH_BUDGET_RATES.fetch(target_lang, DEFAULT_BUDGET_RATE)
 
@@ -264,18 +242,23 @@ module DubbingPipeline
 
         Translate only the lines formatted as [index|duration|budget].
 
-        Every translation is spoken aloud by a TTS voice at a natural pace, and the audio should fill about as much time as the original line took. Each line carries a length band "aim ~X, max Y": X is the length that fills the slot naturally, Y is the hard ceiling. A line that runs OVER Y gets mechanically sped up and sounds rushed; a line that comes in far UNDER X leaves dead air and the dub drifts out of sync with the speaker. Land in the band.
+        Every translation is spoken aloud by a TTS voice at a natural pace, and the audio should fill about as much time as the original line took. Each line carries a length band "aim ~X, max Y": X is the length that fills the slot naturally, Y is the hard ceiling. A line that runs OVER Y gets mechanically sped up and sounds rushed; a line that lands well UNDER X leaves dead air and the dub drifts out of sync with the speaker. Actively land near ~X: compress down to it if the faithful translation runs long, expand up to it (with real meaning, never filler) if the faithful translation runs short.
 
         LENGTH RULES (most important):
         1. Translate the line FAITHFULLY and COMPLETELY first. Aim for ~X in the band; you may go up to Y but never past it. Do NOT shrink a faithful translation below the aim just to be safe. The aim is where you want to be, not a limit to beat.
         2. Only compress when the faithful translation would exceed Y. When you must compress, drop fillers, hedges, and redundancy while keeping the message. NEVER cut content a learner acts on: negations, numbers, ordinals ("first", "second"), qualifiers like "again" or "only", or full technique names (keep "chain of thought prompting", not just "chain of thought").
-        3. If the faithful translation lands well under the aim, that is fine, DON'T pad with filler, but don't compress it further either. Prefer the complete, natural phrasing over a clipped one.
+        3. If a faithful translation lands short of the aim, EXPAND it toward ~X by phrasing more fully, restoring detail the speaker implied, or using the more complete natural wording, so the line fills its slot and stays in lip-sync. This is elaboration, NOT filler: every added word must carry real meaning. Never repeat, never add empty phrases just to reach a number. If you truly cannot reach ~X without inventing content, stop at the longest faithful phrasing.
         4. #{target_lang} may need more words or syllables than English. The band already accounts for this, so translate naturally and trust the band; only tighten if you would exceed Y.
 
-        Compress ONLY when over the ceiling (shown English to Spanish, do the equivalent in #{target_lang}):
+        Compress when over the ceiling; expand when short of the aim (shown English to Spanish, do the equivalent in #{target_lang}):
         [3|3.8s|aim ~9, max 11 words] So, what we're going to do now is take a look at zero shot prompting.
         FAITHFUL, fits (9 words): Ahora vamos a echar un vistazo al zero shot prompting.
         OVER-COMPRESSED, don't do this (6 words): Ahora veremos el zero shot prompting.
+
+        [7|4.2s|aim ~12, max 14 words] Right, exactly.
+        TOO SHORT, leaves dead air (2 words): Claro, exactamente.
+        EXPANDED NATURALLY, fills the slot (11 words): Claro, exactamente, eso es justo lo que quería que entendieran aquí.
+        PADDED, don't do this (empty repetition): Claro, claro, exactamente, sí, exactamente, eso es, claro.
 
         LISTS AND ENUMERATIONS:
         5. When the speaker enumerates items or steps, KEEP every item and KEEP the ordinals ("first / second / third", "one / two / three"). These are the last thing to compress, not the first.
