@@ -74,4 +74,37 @@ RSpec.describe Api::V1::Async::Videos::DubbingTasksController, type: :controller
       end
     end
   end
+
+  describe "DELETE #destroy" do
+    before { allow(DubbingHlsUploader).to receive(:purge) }
+
+    it "cancels a processing task and purges its intermediates" do
+      task = create(:dubbing_task, :with_audio, status: "processing")
+
+      delete :destroy, params: { id: task.id }
+
+      json = JSON.parse(response.body)
+      expect(response).to have_http_status(:ok)
+      expect(json).to include("id" => task.id, "status" => "cancelled")
+      expect(task.reload).to be_cancelled
+      expect(task.audio).not_to be_attached
+    end
+
+    it "leaves an already successful task untouched" do
+      task = create(:dubbing_task, status: "success", hls_path: "https://cos.example.com/hls/master.m3u8")
+
+      delete :destroy, params: { id: task.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body)).to include("status" => "success")
+      expect(task.reload).to be_success
+      expect(task.hls_path).to end_with("/master.m3u8")
+    end
+
+    it "returns not found for an unknown task" do
+      delete :destroy, params: { id: 0 }
+
+      expect(response).to have_http_status(:not_found)
+    end
+  end
 end

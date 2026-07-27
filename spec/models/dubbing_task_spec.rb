@@ -208,4 +208,58 @@ RSpec.describe DubbingTask, type: :model do
       task.purge_pipeline_artifacts!(include_hls: false)
     end
   end
+
+  describe "#terminal?" do
+    it "is true for statuses the pipeline must not continue past" do
+      %w[success failed cancelled].each do |status|
+        expect(build(:dubbing_task, status: status)).to be_terminal
+      end
+    end
+
+    it "is false while the task can still make progress" do
+      %w[pending processing].each do |status|
+        expect(build(:dubbing_task, status: status)).not_to be_terminal
+      end
+    end
+  end
+
+  describe "#cancel!" do
+    before { allow(DubbingHlsUploader).to receive(:purge) }
+
+    it "cancels an in-flight task and purges its artifacts" do
+      task = create(:dubbing_task, :with_audio, :with_vocals, status: "processing")
+
+      expect(task.cancel!).to be(true)
+
+      expect(task.reload).to be_cancelled
+      expect(task.audio).not_to be_attached
+      expect(task.vocals).not_to be_attached
+      expect(DubbingHlsUploader).to have_received(:purge).with(task)
+    end
+
+    it "cancels a task that has not started yet" do
+      task = create(:dubbing_task, status: "pending")
+
+      expect(task.cancel!).to be(true)
+      expect(task.reload).to be_cancelled
+    end
+
+    it "leaves a successful task alone so its deliverable survives" do
+      task = create(:dubbing_task, status: "success")
+
+      expect(task.cancel!).to be(false)
+
+      expect(task.reload).to be_success
+      expect(DubbingHlsUploader).not_to have_received(:purge)
+    end
+
+    it "leaves a failed task alone" do
+      task = create(:dubbing_task, status: "failed", error_message: "boom")
+
+      expect(task.cancel!).to be(false)
+
+      expect(task.reload).to be_failed
+      expect(task.error_message).to eq("boom")
+    end
+  end
 end
