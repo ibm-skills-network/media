@@ -1,28 +1,46 @@
 import argparse
-import contextlib
 import json
-import os
 
 import numpy as np
 import librosa
-from inaSpeechSegmenter import Segmenter
+import torch
+from transformers import (
+    Wav2Vec2FeatureExtractor,
+    Wav2Vec2ForSequenceClassification,
+    logging as hf_logging,
+)
 
-
-@contextlib.contextmanager
-def redirect_stdout_to_stderr():
-    """inaSpeechSegmenter prints init messages to stdout, but Ruby parses stdout as JSON
-    so route those to stderr instead"""
-    original_stdout_fd = os.dup(1)
-    try:
-        os.dup2(2, 1)
-        yield
-    finally:
-        os.dup2(original_stdout_fd, 1)
-        os.close(original_stdout_fd)
+# The Ruby caller parses this script's stdout as JSON, so silence any transformers
+# logging that would otherwise leak onto stdout and corrupt it.
+hf_logging.set_verbosity_error()
 
 
 SAMPLE_RATE = 16000
 FEMALE_PITCH_HZ = 165
+
+# Fine-tuned wav2vec2 classifier; labels are {0: "female", 1: "male"}.
+# Weights are baked into the Docker image at build time (see Dockerfile).
+GENDER_MODEL_ID = "prithivMLmods/Common-Voice-Gender-Detection"
+
+
+def load_gender_model():
+    extractor = Wav2Vec2FeatureExtractor.from_pretrained(GENDER_MODEL_ID)
+    model = Wav2Vec2ForSequenceClassification.from_pretrained(GENDER_MODEL_ID)
+    model.eval()
+    return extractor, model
+
+
+def classify_gender(chunk, sr, extractor, model):
+    """Classify one segment's samples. Returns 'woman'/'man', or None if too short."""
+    if len(chunk) < int(sr * 0.5):
+        return None
+    inputs = extractor(
+        chunk.astype(np.float32), sampling_rate=sr, return_tensors="pt", padding=True
+    )
+    with torch.no_grad():
+        logits = model(**inputs).logits
+    label = model.config.id2label[int(torch.argmax(logits, dim=-1))]
+    return "woman" if label == "female" else "man"
 
 
 def median_pitch(chunk, sr):
@@ -76,6 +94,7 @@ def main():
 
     y, sr = librosa.load(args.audio_path, sr=SAMPLE_RATE)
 
+    # Per-speaker median pitch, used only to break ties in the classifier votes
     speaker_pitches = {}
     for seg in segments:
         chunk = y[int(seg["start"] * sr):int(seg["end"] * sr)]
@@ -88,33 +107,32 @@ def main():
         for speaker, pitches in speaker_pitches.items()
     }
 
-    with redirect_stdout_to_stderr():
-        gender_regions = Segmenter()(args.audio_path)
+    # wav2vec2 gender classification, one vote per segment weighted by duration.
+    extractor, model = load_gender_model()
 
     speaker_gender_votes = {}
     for seg in segments:
-        seg_votes = {}
-        for label, start, end in gender_regions:
-            if label not in ("male", "female"):
-                continue
-            overlap = min(seg["end"], end) - max(seg["start"], start)
-            if overlap > 0:
-                gender = "woman" if label == "female" else "man"
-                seg_votes[gender] = seg_votes.get(gender, 0) + overlap
-        if not seg_votes:
+        chunk = y[int(seg["start"] * sr):int(seg["end"] * sr)]
+        gender = classify_gender(chunk, sr, extractor, model)
+        if gender is None:
             continue
-        detected = max(seg_votes, key=seg_votes.get)
         duration = seg["end"] - seg["start"]
         speaker_gender_votes.setdefault(seg["speaker"], {})
-        speaker_gender_votes[seg["speaker"]][detected] = speaker_gender_votes[seg["speaker"]].get(detected, 0) + duration
+        speaker_gender_votes[seg["speaker"]][gender] = (
+            speaker_gender_votes[seg["speaker"]].get(gender, 0) + duration
+        )
 
     speaker_gender = {}
     for speaker in {s["speaker"] for s in segments}:
-        if pitch_gender.get(speaker) == "woman":
-            speaker_gender[speaker] = "woman"
+        votes = speaker_gender_votes.get(speaker, {})
+        if not votes:
+            # No classifiable audio -> fall back to pitch, else default to "man".
+            speaker_gender[speaker] = pitch_gender.get(speaker, "man")
+        elif votes.get("woman", 0) == votes.get("man", 0):
+            # Classifier is split -> let pitch decide the tie.
+            speaker_gender[speaker] = pitch_gender.get(speaker, "man")
         else:
-            votes = speaker_gender_votes.get(speaker, {})
-            speaker_gender[speaker] = max(votes, key=votes.get) if votes else "man"
+            speaker_gender[speaker] = max(votes, key=votes.get)
 
     for seg in segments:
         seg["gender"] = speaker_gender[seg["speaker"]]

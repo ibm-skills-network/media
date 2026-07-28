@@ -84,6 +84,11 @@ COPY script/dubbing/requirements.txt /tmp/requirements.txt
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt \
     && rm /tmp/requirements.txt
 
+# Bake the wav2vec2 gender-detection weights into the image (360MB)
+ENV HF_HOME=/opt/hf-cache
+RUN python3 -c "from huggingface_hub import snapshot_download; \
+    snapshot_download('prithivMLmods/Common-Voice-Gender-Detection')"
+
 # Copy Ruby and all dependencies from builder
 COPY --from=builder /usr/local/bin/ruby /usr/local/bin/ruby
 COPY --from=builder /usr/local/bin/gem /usr/local/bin/gem
