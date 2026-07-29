@@ -81,7 +81,7 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
       expect(prompt).to include("AT MOST 3 words (it currently has 6)")
     end
 
-    it "budgets Sino-Tibetan languages in characters, not whitespace tokens" do
+    it "budgets char-based languages in characters, not whitespace tokens" do
       # .split would count this 10-character string as a single token
       prompt = prompt_for(text: "こんにちは世界テスト", target_lang: "Japanese")
       expect(prompt).to include("characters (it currently has 10)")

@@ -7,7 +7,7 @@ module DubbingPipeline
     MAX_RETRANSLATE_ATTEMPTS = 2
     COMFORT_SPEED = 1.15
     SLOT_PAD_S = 0.5
-    SINO_TIBETAN_LANGUAGES = %w[Japanese Chinese].freeze
+    CHAR_BASED_LANGUAGES = %w[Japanese Chinese].freeze
 
 
     sidekiq_retries_exhausted do |msg, exception|
@@ -244,7 +244,7 @@ module DubbingPipeline
     end
 
     def retranslate_shorter(text, original_text, clip_s, slot_s, target_lang)
-      unit = SINO_TIBETAN_LANGUAGES.include?(target_lang) ? "characters" : "words"
+      unit = CHAR_BASED_LANGUAGES.include?(target_lang) ? "characters" : "words"
       current_len = unit == "characters" ? text.gsub(/\s/, "").length : text.split.length
       target_len = [ (current_len * slot_s / clip_s).floor, 3 ].max
       conn = Faraday.new do |f|
