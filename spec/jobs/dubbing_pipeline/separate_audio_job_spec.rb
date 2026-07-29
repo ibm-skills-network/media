@@ -9,7 +9,6 @@ RSpec.describe DubbingPipeline::SeparateAudioJob, type: :job do
 
       before do
         allow(Open3).to receive(:capture3).and_return([ "", "", double(success?: true) ])
-        allow(DubbingPipeline::TranscribeJob).to receive(:perform_later)
       end
 
       it "attaches vocals.wav and background.wav to the task" do
@@ -25,8 +24,9 @@ RSpec.describe DubbingPipeline::SeparateAudioJob, type: :job do
         expect(Open3).to have_received(:capture3).once
       end
 
-      it "enqueues TranscribeJob" do
-        expect(DubbingPipeline::TranscribeJob).to receive(:perform_later).with(task.id)
+      # ExtractAudioJob enqueues transcription in parallel, so this job is a leaf
+      it "enqueues no follow-up job" do
+        expect(DubbingPipeline::TranscribeJob).not_to receive(:perform_later)
         described_class.new.perform(task.id)
       end
     end

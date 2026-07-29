@@ -63,5 +63,56 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
         described_class.new.perform(task.id)
       end
     end
+
+    context "when one of the parallel HLS renditions fails" do
+      before do
+        # ffprobe (first call) succeeds; the dubbed-audio rendition fails
+        allow(Open3).to receive(:capture3) do |*args|
+          if args.include?("seg_a-dub_%03d.mp4")
+            [ "", "boom", double(success?: false) ]
+          else
+            [ "10.0", "", double(success?: true) ]
+          end
+        end
+      end
+
+      it "raises that rendition's error" do
+        expect { described_class.new.perform(task.id) }
+          .to raise_error(RuntimeError, /HLS dubbed audio failed/)
+      end
+
+      it "does not upload a partial HLS directory" do
+        expect { described_class.new.perform(task.id) }.to raise_error(RuntimeError)
+        expect(DubbingHlsUploader).not_to have_received(:upload_dir)
+      end
+    end
+  end
+
+  describe "#run_ffmpeg_in_parallel!" do
+    let(:job) { described_class.new }
+
+    it "runs every rendition even when an earlier one fails" do
+      attempted = Concurrent::Array.new
+      allow(job).to receive(:run_ffmpeg!) do |*args, error:|
+        attempted << error
+        raise "#{error}: boom" if error == "first"
+      end
+
+      expect {
+        job.send(:run_ffmpeg_in_parallel!, [
+          { error: "first", args: [ "a" ] },
+          { error: "second", args: [ "b" ] }
+        ])
+      }.to raise_error(/first/)
+
+      expect(attempted).to contain_exactly("first", "second")
+    end
+
+    it "returns normally when every rendition succeeds" do
+      allow(job).to receive(:run_ffmpeg!)
+      expect {
+        job.send(:run_ffmpeg_in_parallel!, [ { error: "a", args: [] }, { error: "b", args: [] } ])
+      }.not_to raise_error
+    end
   end
 end

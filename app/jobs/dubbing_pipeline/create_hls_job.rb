@@ -40,40 +40,38 @@ module DubbingPipeline
         write_subtitles(subtitle_segments, srt_src, format: :srt, use_translated: false)
         write_subtitles(subtitle_segments, srt_dub, format: :srt, use_translated: true)
 
-        # video-only stream, fMP4 segments are required for swappable audio tracks
-        run_ffmpeg!(
-          "-i", dubbed_video_path, "-an", "-c:v", "copy",
-          "-f", "hls", "-hls_time", "6",
-          "-hls_segment_type", "fmp4",
-          "-hls_segment_filename", File.join(hls_dir, "seg_v_%03d.mp4"),
-          "-hls_fmp4_init_filename", "init_v.mp4",
-          "-hls_playlist_type", "vod",
-          File.join(hls_dir, "playlist_v.m3u8"),
-          error: "HLS video segmenting failed"
-        )
-
-        run_ffmpeg!(
-          "-i", audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
-          "-f", "hls", "-hls_time", "6",
-          "-hls_segment_type", "fmp4",
-          "-hls_segment_filename", File.join(hls_dir, "seg_a-eng_%03d.mp4"),
-          "-hls_fmp4_init_filename", "init_a-eng.mp4",
-          "-hls_playlist_type", "vod",
-          File.join(hls_dir, "playlist_a-eng.m3u8"),
-          error: "HLS english audio failed"
-        )
-
-        # dubbed audio, same encoding as English so the player switches cleanly
-        run_ffmpeg!(
-          "-i", dubbed_audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
-          "-f", "hls", "-hls_time", "6",
-          "-hls_segment_type", "fmp4",
-          "-hls_segment_filename", File.join(hls_dir, "seg_a-dub_%03d.mp4"),
-          "-hls_fmp4_init_filename", "init_a-dub.mp4",
-          "-hls_playlist_type", "vod",
-          File.join(hls_dir, "playlist_a-dub.m3u8"),
-          error: "HLS dubbed audio failed"
-        )
+        # the three renditions write disjoint files, so they segment concurrently
+        run_ffmpeg_in_parallel!([
+          # video-only stream, fMP4 segments are required for swappable audio tracks
+          { error: "HLS video segmenting failed", args: [
+            "-i", dubbed_video_path, "-an", "-c:v", "copy",
+            "-f", "hls", "-hls_time", "6",
+            "-hls_segment_type", "fmp4",
+            "-hls_segment_filename", File.join(hls_dir, "seg_v_%03d.mp4"),
+            "-hls_fmp4_init_filename", "init_v.mp4",
+            "-hls_playlist_type", "vod",
+            File.join(hls_dir, "playlist_v.m3u8")
+          ] },
+          { error: "HLS english audio failed", args: [
+            "-i", audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
+            "-f", "hls", "-hls_time", "6",
+            "-hls_segment_type", "fmp4",
+            "-hls_segment_filename", File.join(hls_dir, "seg_a-eng_%03d.mp4"),
+            "-hls_fmp4_init_filename", "init_a-eng.mp4",
+            "-hls_playlist_type", "vod",
+            File.join(hls_dir, "playlist_a-eng.m3u8")
+          ] },
+          # dubbed audio, same encoding as English so the player switches cleanly
+          { error: "HLS dubbed audio failed", args: [
+            "-i", dubbed_audio_path, "-acodec", "aac", "-b:a", "128k", "-ac", "2",
+            "-f", "hls", "-hls_time", "6",
+            "-hls_segment_type", "fmp4",
+            "-hls_segment_filename", File.join(hls_dir, "seg_a-dub_%03d.mp4"),
+            "-hls_fmp4_init_filename", "init_a-dub.mp4",
+            "-hls_playlist_type", "vod",
+            File.join(hls_dir, "playlist_a-dub.m3u8")
+          ] }
+        ])
 
         # one subtitle playlist per language, each wrapping its webvtt as a single segment
         [ src_code, lang_code ].uniq.each do |lang|
@@ -108,6 +106,22 @@ module DubbingPipeline
     def run_ffmpeg!(*args, error:)
       _stdout, stderr, status = Open3.capture3("ffmpeg", "-y", *args)
       raise "#{error}: #{stderr}" unless status.success?
+    end
+
+    # Waits for every thread before raising, so a failure can't leave a stray
+    # ffmpeg writing into the directory we're about to upload.
+    def run_ffmpeg_in_parallel!(runs)
+      threads = runs.map do |run|
+        Thread.new do
+          run_ffmpeg!(*run[:args], error: run[:error])
+          nil
+        rescue => e
+          e
+        end
+      end
+
+      failure = threads.map(&:value).compact.first
+      raise failure if failure
     end
 
     # HH:MM:SS<sep>mmm, VTT uses ".", SRT uses ","

@@ -7,7 +7,12 @@ module DubbingPipeline
     MAX_RETRANSLATE_ATTEMPTS = 2
     COMFORT_SPEED = 1.15
     SLOT_PAD_S = 0.5
-    CHAR_BASED_LANGUAGES = %w[Japanese Chinese].freeze
+    SINO_TIBETAN_LANGUAGES = %w[Japanese Chinese].freeze
+    RETRANSLATE_TIMEOUT_S = 30
+    RETRANSLATE_HTTP_ATTEMPTS = 2
+    MAX_TTS_CONCURRENCY = 10
+    # worst case for one segment: 3 TTS calls at 120s plus 2 retried retranslations
+    TTS_FUTURE_TIMEOUT_S = 600
 
 
     sidekiq_retries_exhausted do |msg, exception|
@@ -29,37 +34,13 @@ module DubbingPipeline
         merged_segments = merge_segments_for_tts(task.segments)
         total_s = DubbingFfprobe.duration_seconds(background_path)
 
-        tts_files = []
         # ranges where translation failed; mix in the original audio here
-        fallback_ranges = []
-        merged_segments.each_with_index do |seg, i|
+        fallback_ranges = merged_segments.filter_map do |seg|
           next if seg["translated_text"].to_s.strip.empty?
-
-          if seg["use_original_audio"]
-            fallback_ranges << [ seg["start"], seg["end"] ]
-            next
-          end
-
-          voice_id = task.voice_for(seg["speaker"])
-          sanitized_text = sanitize_for_tts(seg["translated_text"])
-          slot_s = compute_slot_seconds(merged_segments, i, total_s)
-          next if slot_s <= 0.1
-
-          clip_path, final_text = generate_tts_with_retranslation(
-            text: sanitized_text,
-            original_text: seg["text"],
-            voice_id: voice_id,
-            voice_settings: task.voice_settings_for(seg["prosody"]),
-            slot_s: slot_s,
-            target_lang: task.language,
-            output_dir: ws.dir,
-            index: i
-          )
-
-          merged_segments[i]["retranslated"] = final_text != sanitized_text
-          merged_segments[i]["translated_text"] = final_text
-          tts_files << { index: i, path: clip_path }
+          [ seg["start"], seg["end"] ] if seg["use_original_audio"]
         end
+
+        tts_files = synthesize_clips_in_parallel(merged_segments, task, total_s, ws.dir)
 
         subtitle_segments = rebuild_subtitle_segments(
           task.subtitle_segments, merged_segments, task.segments.length
@@ -99,6 +80,63 @@ module DubbingPipeline
     end
 
     private
+
+    # Synthesizes every spoken segment's clip concurrently; workers only read from
+    # `merged_segments`, all mutation happens here after the pool drains.
+    def synthesize_clips_in_parallel(merged_segments, task, total_s, output_dir)
+      # compute_slot_seconds scans forward through translated_text, which workers
+      # rewrite, so resolve every slot before any of them runs
+      slots = merged_segments.each_index.map { |i| compute_slot_seconds(merged_segments, i, total_s) }
+
+      jobs = merged_segments.each_with_index.filter_map do |seg, i|
+        next if seg["translated_text"].to_s.strip.empty?
+        next if seg["use_original_audio"]
+        next if slots[i] <= 0.1
+
+        { index: i, sanitized_text: sanitize_for_tts(seg["translated_text"]) }
+      end
+      return [] if jobs.empty?
+
+      # warm voice_for's memoized map on this thread so workers don't race it
+      voice_ids = jobs.to_h { |j| [ j[:index], task.voice_for(merged_segments[j[:index]]["speaker"]) ] }
+
+      pool = Concurrent::FixedThreadPool.new([ MAX_TTS_CONCURRENCY, jobs.size ].min)
+      results = begin
+        futures = jobs.map do |job|
+          i = job[:index]
+          seg = merged_segments[i]
+          Concurrent::Promises.future_on(pool) do
+            clip_path, final_text = generate_tts_with_retranslation(
+              text: job[:sanitized_text],
+              original_text: seg["text"],
+              voice_id: voice_ids[i],
+              voice_settings: task.voice_settings_for(seg["prosody"]),
+              slot_s: slots[i],
+              target_lang: task.language,
+              output_dir: output_dir,
+              index: i
+            )
+            { index: i, path: clip_path, final_text: final_text, sanitized_text: job[:sanitized_text] }
+          end
+        end
+
+        futures.map { |future| future.value!(TTS_FUTURE_TIMEOUT_S) }
+      ensure
+        pool.shutdown
+        pool.wait_for_termination(30) || pool.kill
+      end
+
+      # `value!` re-raises worker errors, so a nil here means a future timed out
+      results.each do |result|
+        raise "TTS synthesis returned no result for a segment" if result.nil?
+
+        i = result[:index]
+        merged_segments[i]["retranslated"] = result[:final_text] != result[:sanitized_text]
+        merged_segments[i]["translated_text"] = result[:final_text]
+      end
+
+      results.sort_by { |r| r[:index] }.map { |r| { index: r[:index], path: r[:path] } }
+    end
 
     # combine adjacent same-speaker segments so TTS gets longer phrases to voice naturally
     def merge_segments_for_tts(segments)
@@ -212,7 +250,21 @@ module DubbingPipeline
         end
 
         break if attempt == MAX_RETRANSLATE_ATTEMPTS
-        current_text = retranslate_shorter(current_text, original_text, clip_ms / 1000.0, slot_s, target_lang)
+
+        # a failed retranslation isn't fatal, we already have a shortest clip to fall back on
+        shorter =
+          begin
+            retranslate_shorter(current_text, original_text, clip_ms / 1000.0, slot_s, target_lang)
+          rescue => e
+            Rails.logger.warn(
+              "[GenerateDubbedAudioJob] segment #{index} retranslation failed, " \
+              "keeping the best clip so far: #{e.class}: #{e.message}"
+            )
+            nil
+          end
+        break if shorter.to_s.strip.empty?
+
+        current_text = shorter
       end
 
       # nothing fit, keep the shortest attempt, Python speeds it up or trims
@@ -243,12 +295,31 @@ module DubbingPipeline
       File.binwrite(clip_path, response.body)
     end
 
+    # the response is one short sentence, so a timeout means hung, not slow —
+    # reconnect rather than wait it out
     def retranslate_shorter(text, original_text, clip_s, slot_s, target_lang)
-      unit = CHAR_BASED_LANGUAGES.include?(target_lang) ? "characters" : "words"
+      attempt = 0
+      begin
+        attempt += 1
+        request_retranslation(text, original_text, clip_s, slot_s, target_lang)
+      rescue Faraday::TimeoutError, Faraday::ConnectionFailed => e
+        raise if attempt >= RETRANSLATE_HTTP_ATTEMPTS
+        Rails.logger.warn("[GenerateDubbedAudioJob] retranslate #{e.class}, retrying once")
+        retry
+      rescue RuntimeError => e
+        raise unless e.message =~ /\b(429|5\d\d)\b/
+        raise if attempt >= RETRANSLATE_HTTP_ATTEMPTS
+        sleep(2**attempt)
+        retry
+      end
+    end
+
+    def request_retranslation(text, original_text, clip_s, slot_s, target_lang)
+      unit = SINO_TIBETAN_LANGUAGES.include?(target_lang) ? "characters" : "words"
       current_len = unit == "characters" ? text.gsub(/\s/, "").length : text.split.length
       target_len = [ (current_len * slot_s / clip_s).floor, 3 ].max
       conn = Faraday.new do |f|
-        f.options.timeout = 60
+        f.options.timeout = RETRANSLATE_TIMEOUT_S
         f.options.open_timeout = 10
       end
       response = conn.post("https://api.openai.com/v1/chat/completions") do |req|

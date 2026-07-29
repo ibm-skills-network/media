@@ -26,8 +26,6 @@ module DubbingPipeline
         ws.attach(task.vocals, "vocals.wav", content_type: "audio/wav")
         ws.attach(task.background, "background.wav", content_type: "audio/wav")
       end
-
-      DubbingPipeline::TranscribeJob.perform_later(task_id)
     end
   end
 end

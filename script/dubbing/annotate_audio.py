@@ -17,6 +17,10 @@ hf_logging.set_verbosity_error()
 
 SAMPLE_RATE = 16000
 FEMALE_PITCH_HZ = 165
+MIN_CHUNK_SEC = 0.5  # shorter segments aren't reliably classifiable
+GENDER_BATCH_SIZE = 32
+MAX_PAD_RATIO = 1.5  # split a batch past this longest/shortest ratio
+MAX_CLASSIFY_SEC = 8.0  # a couple of seconds of speech is enough for gender
 
 # Fine-tuned wav2vec2 classifier; labels are {0: "female", 1: "male"}.
 # Weights are baked into the Docker image at build time (see Dockerfile).
@@ -24,23 +28,65 @@ GENDER_MODEL_ID = "prithivMLmods/Common-Voice-Gender-Detection"
 
 
 def load_gender_model():
+    """Load the classifier onto the GPU when one is available, else CPU."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     extractor = Wav2Vec2FeatureExtractor.from_pretrained(GENDER_MODEL_ID)
     model = Wav2Vec2ForSequenceClassification.from_pretrained(GENDER_MODEL_ID)
+    model.to(device)
     model.eval()
-    return extractor, model
+    return extractor, model, device
 
 
-def classify_gender(chunk, sr, extractor, model):
-    """Classify one segment's samples. Returns 'woman'/'man', or None if too short."""
-    if len(chunk) < int(sr * 0.5):
-        return None
-    inputs = extractor(
-        chunk.astype(np.float32), sampling_rate=sr, return_tensors="pt", padding=True
-    )
-    with torch.no_grad():
-        logits = model(**inputs).logits
-    label = model.config.id2label[int(torch.argmax(logits, dim=-1))]
-    return "woman" if label == "female" else "man"
+def classify_gender_batch(chunks, sr, extractor, model, device):
+    """Classify segments in batches -> 'woman'/'man', or None if too short."""
+    min_len = int(sr * MIN_CHUNK_SEC)
+    max_len = int(sr * MAX_CLASSIFY_SEC)
+    # Keep original positions so results map back after length-sorted batching.
+    indexed = [
+        (i, c[:max_len]) for i, c in enumerate(chunks) if len(c) >= min_len
+    ]
+    results = [None] * len(chunks)
+    if not indexed:
+        return results
+
+    # Sort by length to keep clips of similar length batched together.
+    indexed.sort(key=lambda ic: len(ic[1]))
+
+    for batch in _padding_safe_batches(indexed):
+        wavs = [c.astype(np.float32) for _, c in batch]
+        # This is a group-norm wav2vec2, pretrained without an attention mask, so
+        # it must get plain zero padding and NO mask.
+        inputs = extractor(
+            wavs, sampling_rate=sr, return_tensors="pt",
+            padding=True, return_attention_mask=False,
+        ).to(device)
+        with torch.no_grad():
+            logits = model(**inputs).logits
+        label_ids = torch.argmax(logits, dim=-1).tolist()
+        for (orig_i, _), label_id in zip(batch, label_ids):
+            label = model.config.id2label[label_id]
+            results[orig_i] = "woman" if label == "female" else "man"
+
+    return results
+
+
+def _padding_safe_batches(indexed):
+    """Batch length-sorted (index, chunk) pairs within MAX_PAD_RATIO.
+
+    Unmasked padding is real input to the model, so mixing a 0.5s clip with an 8s
+    one would bury the short clip in zeros and could flip its label.
+    """
+    batch = []
+    for item in indexed:
+        if batch and (
+            len(batch) >= GENDER_BATCH_SIZE
+            or len(item[1]) > len(batch[0][1]) * MAX_PAD_RATIO
+        ):
+            yield batch
+            batch = []
+        batch.append(item)
+    if batch:
+        yield batch
 
 
 def median_pitch(chunk, sr):
@@ -108,12 +154,12 @@ def main():
     }
 
     # wav2vec2 gender classification, one vote per segment weighted by duration.
-    extractor, model = load_gender_model()
+    extractor, model, device = load_gender_model()
+    chunks = [y[int(seg["start"] * sr):int(seg["end"] * sr)] for seg in segments]
+    genders = classify_gender_batch(chunks, sr, extractor, model, device)
 
     speaker_gender_votes = {}
-    for seg in segments:
-        chunk = y[int(seg["start"] * sr):int(seg["end"] * sr)]
-        gender = classify_gender(chunk, sr, extractor, model)
+    for seg, gender in zip(segments, genders):
         if gender is None:
             continue
         duration = seg["end"] - seg["start"]
