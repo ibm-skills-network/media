@@ -66,9 +66,10 @@ RSpec.describe DubbingPipeline::CreateHlsJob, type: :job do
 
     context "when one of the parallel HLS renditions fails" do
       before do
-        # ffprobe (first call) succeeds; the dubbed-audio rendition fails
+        # ffprobe succeeds; only the dubbed-audio rendition fails. The segment
+        # filename arrives as an absolute path, so match on a substring.
         allow(Open3).to receive(:capture3) do |*args|
-          if args.include?("seg_a-dub_%03d.mp4")
+          if args.any? { |a| a.to_s.include?("seg_a-dub_") }
             [ "", "boom", double(success?: false) ]
           else
             [ "10.0", "", double(success?: true) ]
