@@ -55,7 +55,7 @@ module DubbingPipeline
         translated = translations[i]
         if translated.to_s.strip.empty?
           missing << i
-          # Keep the source text for subtitles, but flag is so 
+          # Keep the source text for subtitles, but flag is so
           # GenerateDubbedAudioJob splices the original audio in rather than voicing
           # untranslated English.
           seg["translated_text"] = seg["text"]
