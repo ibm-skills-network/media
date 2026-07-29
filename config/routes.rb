@@ -20,10 +20,17 @@ Rails.application.routes.draw do
   # API v1 routes
   namespace :api do
     namespace :v1, defaults: { format: :json } do
+      namespace :voice_catalog do
+        resources :languages, only: %w[ index ] do
+          member { get :dialects }
+        end
+      end
+
       namespace :async do
         namespace :videos do
           resources :transcoding_tasks, only: %w[ show create ]
           resources :images_to_video_tasks, only: %w[ show create ]
+          resources :dubbing_tasks, only: %w[ show create destroy ]
         end
       end
     end
