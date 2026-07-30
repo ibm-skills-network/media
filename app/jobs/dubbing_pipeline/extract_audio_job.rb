@@ -33,7 +33,9 @@ module DubbingPipeline
         ws.attach(task.source_video, "source.mp4", content_type: "video/mp4")
       end
 
+      # Both only need audio.wav; vocals isn't read until AnnotateAudioJob
       DubbingPipeline::SeparateAudioJob.perform_later(task_id)
+      DubbingPipeline::TranscribeJob.perform_later(task_id)
     end
   end
 end

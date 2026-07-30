@@ -55,6 +55,58 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
       expect(File).to exist(path)
       expect(File).not_to exist(File.join(@dir, "tts_0_best.mp3"))
     end
+
+    it "keeps the best clip so far when retranslation times out" do
+      allow(DubbingFfprobe).to receive(:duration_seconds).and_return(8.0)
+      allow(job).to receive(:retranslate_shorter).and_raise(Faraday::TimeoutError)
+
+      path, text = call_with_slot(job, @dir)
+      expect(text).to eq("hola mundo esto es una prueba")
+      expect(File).to exist(path)
+    end
+
+    it "does not call TTS again after a failed retranslation" do
+      allow(DubbingFfprobe).to receive(:duration_seconds).and_return(8.0)
+      allow(job).to receive(:retranslate_shorter).and_raise(Faraday::TimeoutError)
+
+      call_with_slot(job, @dir)
+
+      expect(job).to have_received(:write_tts_clip).once
+    end
+
+    it "keeps the best clip when retranslation comes back blank" do
+      allow(DubbingFfprobe).to receive(:duration_seconds).and_return(8.0)
+      allow(job).to receive(:retranslate_shorter).and_return("   ")
+
+      _path, text = call_with_slot(job, @dir)
+      expect(text).to eq("hola mundo esto es una prueba")
+    end
+  end
+
+  describe "#retranslate_shorter retry behaviour" do
+    let(:job) { described_class.new }
+
+    it "retries once on a timeout and returns the second attempt" do
+      calls = 0
+      allow(job).to receive(:request_retranslation) do
+        calls += 1
+        raise Faraday::TimeoutError if calls == 1
+        "mas corto"
+      end
+
+      result = job.send(:retranslate_shorter, "texto largo", "original", 5.0, 2.5, "Spanish")
+      expect(result).to eq("mas corto")
+      expect(calls).to eq(2)
+    end
+
+    it "gives up after RETRANSLATE_HTTP_ATTEMPTS so the caller can fall back" do
+      allow(job).to receive(:request_retranslation).and_raise(Faraday::TimeoutError)
+
+      expect { job.send(:retranslate_shorter, "texto", "original", 5.0, 2.5, "Spanish") }
+        .to raise_error(Faraday::TimeoutError)
+      expect(job).to have_received(:request_retranslation)
+        .exactly(described_class::RETRANSLATE_HTTP_ATTEMPTS).times
+    end
   end
 
   describe "#retranslate_shorter" do
@@ -81,7 +133,7 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
       expect(prompt).to include("AT MOST 3 words (it currently has 6)")
     end
 
-    it "budgets char-based languages in characters, not whitespace tokens" do
+    it "budgets Sino-Tibetan languages in characters, not whitespace tokens" do
       # .split would count this 10-character string as a single token
       prompt = prompt_for(text: "こんにちは世界テスト", target_lang: "Japanese")
       expect(prompt).to include("characters (it currently has 10)")
@@ -196,6 +248,107 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
     end
   end
 
+  describe "#synthesize_clips_in_parallel" do
+    let(:job) { described_class.new }
+    let(:task) do
+      instance_double(DubbingTask, language: "Spanish").tap do |t|
+        allow(t).to receive(:voice_for) { |speaker| "voice_#{speaker}" }
+        allow(t).to receive(:voice_settings_for).and_return({ stability: 0.5 })
+      end
+    end
+    let(:segments) do
+      [
+        { "start" => 0.0, "end" => 2.0, "text" => "a", "translated_text" => "aa", "speaker" => "S0" },
+        { "start" => 2.0, "end" => 4.0, "text" => "b", "translated_text" => "bb", "speaker" => "S0" },
+        { "start" => 4.0, "end" => 6.0, "text" => "c", "translated_text" => "", "speaker" => "S1" },
+        { "start" => 6.0, "end" => 8.0, "text" => "d", "translated_text" => "dd",
+          "speaker" => "S1", "use_original_audio" => true },
+        { "start" => 8.0, "end" => 10.0, "text" => "e", "translated_text" => "ee", "speaker" => "S0" }
+      ]
+    end
+
+    it "voices only the spoken segments and returns tts_files ordered by index" do
+      allow(job).to receive(:generate_tts_with_retranslation) do |**kwargs|
+        [ "clip_#{kwargs[:index]}", kwargs[:text] ]
+      end
+
+      files = job.send(:synthesize_clips_in_parallel, segments, task, 12.0, "/tmp/out")
+
+      # index 2 is untranslated and index 3 uses original audio, so neither is voiced
+      expect(files).to eq([
+        { index: 0, path: "clip_0" },
+        { index: 1, path: "clip_1" },
+        { index: 4, path: "clip_4" }
+      ])
+    end
+
+    it "applies each worker's text back to its own segment" do
+      allow(job).to receive(:generate_tts_with_retranslation) do |**kwargs|
+        [ "clip_#{kwargs[:index]}", "#{kwargs[:text]}_short" ]
+      end
+
+      job.send(:synthesize_clips_in_parallel, segments, task, 12.0, "/tmp/out")
+
+      expect(segments.map { |s| s["translated_text"] }).to eq([ "aa_short", "bb_short", "", "dd", "ee_short" ])
+      expect(segments.map { |s| s["retranslated"] }).to eq([ true, true, nil, nil, true ])
+    end
+
+    it "sizes every slot before any worker runs so concurrent rewrites cannot shift them" do
+      seen_slots = {}
+      allow(job).to receive(:generate_tts_with_retranslation) do |**kwargs|
+        seen_slots[kwargs[:index]] = kwargs[:slot_s]
+        [ "clip_#{kwargs[:index]}", kwargs[:text] ]
+      end
+
+      job.send(:synthesize_clips_in_parallel, segments, task, 12.0, "/tmp/out")
+
+      expected = segments.each_index.map { |i| job.send(:compute_slot_seconds, segments, i, 12.0) }
+      expect(seen_slots[0]).to eq(expected[0])
+      expect(seen_slots[1]).to eq(expected[1])
+      expect(seen_slots[4]).to eq(expected[4])
+    end
+
+    it "resolves each speaker's voice once on the caller thread" do
+      allow(job).to receive(:generate_tts_with_retranslation) { |**k| [ "c", k[:text] ] }
+
+      job.send(:synthesize_clips_in_parallel, segments, task, 12.0, "/tmp/out")
+
+      # S0 voices three of the segments, S1's are both skipped
+      expect(task).to have_received(:voice_for).with("S0").exactly(3).times
+      expect(task).not_to have_received(:voice_for).with("S1")
+    end
+
+    it "propagates a worker failure so the job retries rather than shipping partial audio" do
+      allow(job).to receive(:generate_tts_with_retranslation) do |**kwargs|
+        raise "ElevenLabs failed: HTTP 500" if kwargs[:index] == 1
+        [ "clip_#{kwargs[:index]}", kwargs[:text] ]
+      end
+
+      expect { job.send(:synthesize_clips_in_parallel, segments, task, 12.0, "/tmp/out") }
+        .to raise_error(/ElevenLabs failed/)
+    end
+
+    it "returns no files and skips the pool when nothing needs voicing" do
+      silent = [ { "start" => 0.0, "end" => 1.0, "translated_text" => "", "speaker" => "S0" } ]
+      expect(job).not_to receive(:generate_tts_with_retranslation)
+
+      expect(job.send(:synthesize_clips_in_parallel, silent, task, 5.0, "/tmp/out")).to eq([])
+    end
+
+    it "skips segments whose slot has collapsed" do
+      overlapping = [
+        { "start" => 0.0, "end" => 2.0, "text" => "a", "translated_text" => "aa", "speaker" => "S0" },
+        { "start" => 0.0, "end" => 2.0, "text" => "b", "translated_text" => "bb", "speaker" => "S0" }
+      ]
+      allow(job).to receive(:generate_tts_with_retranslation) { |**k| [ "c#{k[:index]}", k[:text] ] }
+
+      files = job.send(:synthesize_clips_in_parallel, overlapping, task, 4.0, "/tmp/out")
+
+      # segment 0's slot ends where segment 1 starts, i.e. 0.0s, so it gets no clip
+      expect(files.map { |f| f[:index] }).to eq([ 1 ])
+    end
+  end
+
   describe "#sanitize_for_tts" do
     let(:job) { described_class.new }
 
@@ -235,7 +388,7 @@ RSpec.describe DubbingPipeline::GenerateDubbedAudioJob, type: :job do
         # Covers both ffprobe (duration string) and the mix script (success)
         allow(Open3).to receive(:capture3).and_return([ "60.0", "", double(success?: true) ])
         allow(File).to receive(:write)
-        # Skip ElevenLabs/TTS round-trips by zeroing-out the segments-to-voice loop
+        # no segments to voice, so nothing reaches ElevenLabs
         allow_any_instance_of(described_class).to receive(:merge_segments_for_tts).and_return([])
         allow(DubbingPipeline::CreateDubbedVideoJob).to receive(:perform_later)
       end

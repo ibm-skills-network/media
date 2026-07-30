@@ -2,9 +2,9 @@ module DubbingPipeline
   class TranslateJob < ApplicationJob
     queue_as :low
 
-    BATCH_SIZE = 15
+    BATCH_SIZE = 20
     CONTEXT_OVERLAP = 2
-    MAX_CONCURRENCY = 5
+    MAX_CONCURRENCY = 10
     BATCH_TIMEOUT_S = 600
     MAX_BATCH_RETRIES = 3
     MAX_MISSING_RETRIES = 2

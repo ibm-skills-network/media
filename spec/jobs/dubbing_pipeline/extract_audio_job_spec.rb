@@ -10,6 +10,7 @@ RSpec.describe DubbingPipeline::ExtractAudioJob, type: :job do
       before do
         allow(Open3).to receive(:capture3).and_return([ "", "", double(success?: true) ])
         allow(DubbingPipeline::SeparateAudioJob).to receive(:perform_later)
+        allow(DubbingPipeline::TranscribeJob).to receive(:perform_later)
       end
 
       it "attaches audio.wav and source.mp4 to the task" do
@@ -29,8 +30,9 @@ RSpec.describe DubbingPipeline::ExtractAudioJob, type: :job do
         end
       end
 
-      it "enqueues SeparateAudioJob" do
+      it "enqueues SeparateAudioJob and TranscribeJob" do
         expect(DubbingPipeline::SeparateAudioJob).to receive(:perform_later).with(task.id)
+        expect(DubbingPipeline::TranscribeJob).to receive(:perform_later).with(task.id)
         described_class.new.perform(task.id)
       end
 

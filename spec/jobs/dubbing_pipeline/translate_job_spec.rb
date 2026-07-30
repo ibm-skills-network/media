@@ -96,7 +96,7 @@ RSpec.describe DubbingPipeline::TranslateJob, type: :job do
       end
 
       it "retries the missing segment MAX_MISSING_RETRIES times before giving up" do
-        # 2 first-pass batches (20 segments / BATCH_SIZE) + one retry post per round.
+        # first-pass batches (20 segments / BATCH_SIZE) + one retry post per round.
         first_pass_batches = described_class.new.send(:build_batches, segments).size
         expect(conn).to receive(:post)
           .exactly(first_pass_batches + described_class::MAX_MISSING_RETRIES).times
