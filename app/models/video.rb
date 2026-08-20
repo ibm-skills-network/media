@@ -2,7 +2,7 @@ class Video < ApplicationRecord
   has_one_attached :video_file
   has_many :transcoding_tasks, class_name: "Videos::TranscodingTask", dependent: :destroy
 
-  VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime" ].freeze
+  VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime", "application/mp4" ].freeze
 
   validate :validate_video
   validate :only_one_video_source
