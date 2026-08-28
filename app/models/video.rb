@@ -2,9 +2,7 @@ class Video < ApplicationRecord
   has_one_attached :video_file
   has_many :transcoding_tasks, class_name: "Videos::TranscodingTask", dependent: :destroy
 
-  VIDEO_TYPES = [ "video/mp4", "video/webm", "video/quicktime", "application/mp4" ].freeze
-
-  validate :validate_video
+  validate :external_video_link_is_http
   validate :only_one_video_source
 
 
@@ -27,6 +25,7 @@ class Video < ApplicationRecord
       "-y",
       "-hwaccel", "cuda",
       "-hwaccel_output_format", "cuda",
+      "-protocol_whitelist", "http,https,tls,tcp",
       "-i", video_source_url
     ]
 
@@ -104,14 +103,16 @@ class Video < ApplicationRecord
 
   private
 
-  def validate_video
-    if external_video_link.present? && !VIDEO_TYPES.include?(Ffmpeg::Video.mime_type(external_video_link))
-      errors.add(:base, "external video link must be a valid video link (mp4, webm, or mov)")
-    end
+  # Block anything ffmpeg's `-i` could read as a non-HTTP protocol (file://, concat:, pipe:, ...)
+  def external_video_link_is_http
+    return if external_video_link.blank?
 
-    if video_file.attached? && !VIDEO_TYPES.include?(video_file.blob.content_type)
-      errors.add(:base, "video file must be a valid video file (mp4, webm, or mov)")
-    end
+    uri = URI.parse(external_video_link)
+    return if %w[http https].include?(uri.scheme) && uri.host.present?
+
+    errors.add(:base, "external video link must be an http(s) URL")
+  rescue URI::InvalidURIError
+    errors.add(:base, "external video link is not a valid URL")
   end
 
   def only_one_video_source
