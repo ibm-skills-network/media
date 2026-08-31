@@ -4,43 +4,36 @@ RSpec.describe Video, type: :model do
   include_context "ffmpeg video api"
 
   describe "validations" do
-    describe "#validate_video" do
-      context "with external_video_link" do
-        it "is valid with a valid video mime type" do
-          video = build(:video, external_video_link: "https://example.com/video.mp4")
-          expect(video).to be_valid
-        end
+    describe "#external_video_link_is_http" do
+      it "is valid with an http(s) link regardless of the reported mime type" do
+        allow(Ffmpeg::Video).to receive(:mime_type).and_return("binary/octet-stream")
 
-        it "is invalid with an invalid video mime type" do
-          allow(Ffmpeg::Video).to receive(:mime_type).and_return("text/html")
-
-          video = build(:video, external_video_link: "https://example.com/notavideo.html")
-          expect(video).not_to be_valid
-          expect(video.errors[:base]).to include("external video link must be a valid video link (mp4, webm, or mov)")
-        end
+        video = build(:video, external_video_link: "https://example.com/video.m4v")
+        expect(video).to be_valid
       end
 
-      context "with video_file attached" do
-        it "is valid with a valid video content type" do
-          video = build(:video, external_video_link: nil)
-          video.video_file.attach(
-            io: StringIO.new("video content"),
-            filename: "test.mp4",
-            content_type: "video/mp4"
-          )
-          expect(video).to be_valid
-        end
+      it "is invalid with a non-http protocol ffmpeg could read" do
+        video = build(:video, external_video_link: "file:///etc/passwd")
+        expect(video).not_to be_valid
+        expect(video.errors[:base]).to include("external video link must be an http(s) URL")
+      end
 
-        it "is invalid with an invalid video content type" do
-          video = build(:video, external_video_link: nil)
-          video.video_file.attach(
-            io: StringIO.new("not a video"),
-            filename: "test.txt",
-            content_type: "text/plain"
-          )
-          expect(video).not_to be_valid
-          expect(video.errors[:base]).to include("video file must be a valid video file (mp4, webm, or mov)")
-        end
+      it "is invalid with an unparseable URL" do
+        video = build(:video, external_video_link: "http://exa mple.com/video.mp4")
+        expect(video).not_to be_valid
+        expect(video.errors[:base]).to include("external video link is not a valid URL")
+      end
+    end
+
+    context "with video_file attached" do
+      it "is valid regardless of the attachment content type" do
+        video = build(:video, external_video_link: nil)
+        video.video_file.attach(
+          io: StringIO.new("video content"),
+          filename: "test.m4v",
+          content_type: "binary/octet-stream"
+        )
+        expect(video).to be_valid
       end
     end
 
