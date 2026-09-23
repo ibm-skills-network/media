@@ -21,8 +21,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-      # Public, so the bot credentials are not visible here and a tag would build no image.
-      autorelease: false
           fetch-depth: 0
       - name: Check if Dockerfile changed since last release
         id: changed
