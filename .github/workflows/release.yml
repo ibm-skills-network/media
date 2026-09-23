@@ -21,6 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+      # Public, so the bot credentials are not visible here and a tag would build no image.
+      autorelease: false
           fetch-depth: 0
       - name: Check if Dockerfile changed since last release
         id: changed
@@ -47,6 +49,8 @@ jobs:
     if: needs.check-ffmpeg-changes.outputs.changed == 'true'
     uses: ibm-skills-network/.github/.github/workflows/release.yml@main
     with:
+      # Public, so the bot credentials are not visible here and a tag would build no image.
+      autorelease: false
       image: icr.io/skills-network/media/ffmpeg
       docker_file: utils/ffmpeg/Dockerfile
       docker_context: .
@@ -59,6 +63,8 @@ jobs:
     if: always() && !cancelled()
     uses: ibm-skills-network/.github/.github/workflows/release.yml@main
     with:
+      # Public, so the bot credentials are not visible here and a tag would build no image.
+      autorelease: false
       image: icr.io/skills-network/media
       docker_context: .
       docker_target: release
