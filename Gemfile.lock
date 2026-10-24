@@ -289,7 +289,7 @@ GEM
       opentelemetry-api (~> 1.0)
     ostruct (0.6.3)
     parallel (1.28.0)
-    parser (3.3.12.0)
+    parser (3.3.13.0)
       ast (~> 2.4.1)
       racc
     pg (1.7.0)
@@ -358,7 +358,7 @@ GEM
       redis-client (>= 0.22.0)
     redis-client (0.29.0)
       connection_pool
-    regexp_parser (2.12.0)
+    regexp_parser (2.13.1)
     reline (0.6.3)
       io-console (~> 0.5)
     rexml (3.4.4)
@@ -379,24 +379,24 @@ GEM
       rspec-mocks (~> 3.13)
       rspec-support (~> 3.13)
     rspec-support (3.13.6)
-    rubocop (1.91.0)
+    rubocop (1.92.1)
       json (>= 2.3)
       language_server-protocol (~> 3.17.0.2)
       lint_roller (~> 1.1.0)
       parallel (>= 1.10)
       parser (>= 3.3.0.2)
       rainbow (>= 2.2.2, < 4.0)
-      regexp_parser (>= 2.9.3, < 3.0)
+      regexp_parser (>= 2.11.3, < 3.0)
       rubocop-ast (>= 1.49.0, < 2.0)
       ruby-progressbar (~> 1.7)
       unicode-display_width (>= 2.4.0, < 4.0)
     rubocop-ast (1.50.0)
       parser (>= 3.3.7.2)
       prism (~> 1.7)
-    rubocop-github (0.17.0)
-      rubocop
-      rubocop-performance
-      rubocop-rails
+    rubocop-github (0.29.0)
+      rubocop (>= 1.91)
+      rubocop-performance (>= 1.24)
+      rubocop-rails (>= 2.34)
     rubocop-performance (1.27.0)
       lint_roller (~> 1.1)
       rubocop (>= 1.89.0, < 2.0)
@@ -481,7 +481,7 @@ DEPENDENCIES
   rails (~> 8.1.0)
   redis
   rspec-rails (~> 6.0)
-  rubocop-github (~> 0.17.0)
+  rubocop-github (~> 0.29.0)
   rubocop-performance
   rubocop-rails
   rubocop-rails-omakase
